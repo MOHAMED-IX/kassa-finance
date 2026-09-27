@@ -1,0 +1,201 @@
+{
+  "entities": {
+    "userProfile": {
+      "title": "UserProfile",
+      "description": "Represents the authenticated user's account profile and preferences",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "User's unique Firebase auth ID",
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "description": "User's primary email address",
+          "maxLength": 256
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User's display name",
+          "maxLength": 128
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "Avatar URL",
+          "maxLength": 1024
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Account setup ISO date string",
+          "maxLength": 64
+        },
+        "hasMigratedLocalData": {
+          "type": "boolean",
+          "description": "Whether local browser data has already been migrated"
+        }
+      },
+      "required": ["uid", "email"]
+    },
+    "expense": {
+      "title": "Expense",
+      "description": "A single financial transaction / expense item",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique expense ID",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Expense title or item name",
+          "maxLength": 256
+        },
+        "amount": {
+          "type": "number",
+          "description": "Amount in EUR"
+        },
+        "categoryId": {
+          "type": "string",
+          "description": "Identifier of the category",
+          "maxLength": 128
+        },
+        "store": {
+          "type": "string",
+          "description": "Store or merchant name",
+          "maxLength": 128
+        },
+        "date": {
+          "type": "string",
+          "description": "Date formatted as YYYY-MM-DD",
+          "maxLength": 32
+        },
+        "month": {
+          "type": "number",
+          "description": "Month number 1 to 12"
+        },
+        "year": {
+          "type": "number",
+          "description": "Calendar year"
+        },
+        "isRecurring": {
+          "type": "boolean",
+          "description": "Whether this is recurring monthly"
+        },
+        "type": {
+          "type": "string",
+          "description": "fixed or variable",
+          "enum": ["fixed", "variable"]
+        },
+        "notes": {
+          "type": "string",
+          "description": "Optional notes",
+          "maxLength": 2048
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Timestamp created"
+        }
+      },
+      "required": ["id", "name", "amount", "categoryId", "store", "date", "month", "year", "isRecurring", "type", "createdAt"]
+    },
+    "category": {
+      "title": "Category",
+      "description": "Budget category definition",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique category identifier",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Category name",
+          "maxLength": 128
+        },
+        "nameAr": {
+          "type": "string",
+          "description": "Optional Arabic category name",
+          "maxLength": 128
+        },
+        "color": {
+          "type": "string",
+          "description": "Hex color code",
+          "maxLength": 32
+        },
+        "iconName": {
+          "type": "string",
+          "description": "Lucide icon name identifier",
+          "maxLength": 64
+        },
+        "defaultType": {
+          "type": "string",
+          "description": "Default expense type",
+          "enum": ["fixed", "variable"]
+        },
+        "stores": {
+          "type": "array",
+          "description": "Common stores for this category"
+        }
+      },
+      "required": ["id", "name", "color", "iconName", "defaultType", "stores"]
+    },
+    "monthRecord": {
+      "title": "MonthRecord",
+      "description": "Monthly income and category budgets record",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Document ID formatted as YYYY-M",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "year": {
+          "type": "number",
+          "description": "Calendar year"
+        },
+        "month": {
+          "type": "number",
+          "description": "Month number 1-12"
+        },
+        "income": {
+          "type": "number",
+          "description": "Monthly total income in EUR"
+        },
+        "budgets": {
+          "type": "object",
+          "description": "Key-value map of category ID to budget in EUR"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Optional notes for the month",
+          "maxLength": 2048
+        }
+      },
+      "required": ["year", "month", "income", "budgets"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "userProfile",
+      "description": "User profile and state document"
+    },
+    "/users/{userId}/expenses/{expenseId}": {
+      "schema": "expense",
+      "description": "User's financial transactions"
+    },
+    "/users/{userId}/categories/{categoryId}": {
+      "schema": "category",
+      "description": "User's customized category list"
+    },
+    "/users/{userId}/monthRecords/{recordId}": {
+      "schema": "monthRecord",
+      "description": "User's monthly income and category budget allocations"
+    }
+  }
+}
