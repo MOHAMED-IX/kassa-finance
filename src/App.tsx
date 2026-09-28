@@ -49,7 +49,13 @@ import {
   saveMonthRecordCloud,
   uploadFullDatasetCloud,
   exactRestoreCloudDataset,
+  saveUserActiveMonthCloud,
 } from './services/firestoreData';
+import {
+  determineInitialActiveMonth,
+  getSavedLocalActiveMonth,
+  saveLocalActiveMonth,
+} from './utils/monthPersistence';
 import { exportToCSV } from './utils/exportImport';
 import { Language, translations } from './utils/i18n';
 import { round2 } from './utils/formatters';
@@ -64,9 +70,17 @@ function KassaFinanceApp() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [pendingMigrationData, setPendingMigrationData] = useState<StoredData | null>(null);
 
-  // Active View & Date Selection (default to Sep 2026 per verification test case)
-  const [selectedYear, setSelectedYear] = useState<number>(2026);
-  const [selectedMonth, setSelectedMonth] = useState<number>(9);
+  // Active View & Date Selection (persisted per-user and per-device)
+  const [selectedYear, setSelectedYear] = useState<number>(() => {
+    const saved = getSavedLocalActiveMonth();
+    if (saved) return saved.year;
+    return new Date().getFullYear();
+  });
+  const [selectedMonth, setSelectedMonth] = useState<number>(() => {
+    const saved = getSavedLocalActiveMonth();
+    if (saved) return saved.month;
+    return new Date().getMonth() + 1;
+  });
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
 
   // Preferences: Language & Dark Mode
@@ -119,6 +133,18 @@ function KassaFinanceApp() {
           setCategories(cloudData.categories);
           setMonthRecords(cloudData.monthRecords);
           saveStoredData(cloudData.expenses, cloudData.categories, cloudData.monthRecords);
+
+          const initialMonth = determineInitialActiveMonth({
+            cloudMonth: cloudData.activeMonth,
+            cloudYear: cloudData.activeYear,
+            userId: user!.uid,
+            expenses: cloudData.expenses,
+            monthRecords: cloudData.monthRecords,
+          });
+          setSelectedMonth(initialMonth.month);
+          setSelectedYear(initialMonth.year);
+          saveLocalActiveMonth(initialMonth.month, initialMonth.year, user!.uid);
+
           setIsLoaded(true);
         } else {
           // Cloud is empty for this user. Check if there is existing local browser data.
@@ -131,6 +157,16 @@ function KassaFinanceApp() {
             setCategories(localData.categories);
             setMonthRecords(localData.monthRecords);
             setPendingMigrationData(localData);
+
+            const initialMonth = determineInitialActiveMonth({
+              userId: user!.uid,
+              expenses: localData.expenses,
+              monthRecords: localData.monthRecords,
+            });
+            setSelectedMonth(initialMonth.month);
+            setSelectedYear(initialMonth.year);
+            saveLocalActiveMonth(initialMonth.month, initialMonth.year, user!.uid);
+
             setIsLoaded(true);
           } else {
             // No local data or already migrated -> initialize cloud with standard default dataset
@@ -146,6 +182,16 @@ function KassaFinanceApp() {
             setCategories(DEFAULT_CATEGORIES);
             setMonthRecords(DEFAULT_MONTH_RECORDS);
             saveStoredData(DEFAULT_EXPENSES, DEFAULT_CATEGORIES, DEFAULT_MONTH_RECORDS);
+
+            const initialMonth = determineInitialActiveMonth({
+              userId: user!.uid,
+              expenses: DEFAULT_EXPENSES,
+              monthRecords: DEFAULT_MONTH_RECORDS,
+            });
+            setSelectedMonth(initialMonth.month);
+            setSelectedYear(initialMonth.year);
+            saveLocalActiveMonth(initialMonth.month, initialMonth.year, user!.uid);
+
             setIsLoaded(true);
           }
         }
@@ -157,6 +203,15 @@ function KassaFinanceApp() {
         setExpenses(localData.expenses);
         setCategories(localData.categories);
         setMonthRecords(localData.monthRecords);
+
+        const initialMonth = determineInitialActiveMonth({
+          userId: user!.uid,
+          expenses: localData.expenses,
+          monthRecords: localData.monthRecords,
+        });
+        setSelectedMonth(initialMonth.month);
+        setSelectedYear(initialMonth.year);
+
         setIsLoaded(true);
       }
     }
@@ -219,6 +274,16 @@ function KassaFinanceApp() {
         pendingMigrationData.categories,
         pendingMigrationData.monthRecords
       );
+
+      const initialMonth = determineInitialActiveMonth({
+        userId: user.uid,
+        expenses: pendingMigrationData.expenses,
+        monthRecords: pendingMigrationData.monthRecords,
+      });
+      setSelectedMonth(initialMonth.month);
+      setSelectedYear(initialMonth.year);
+      saveLocalActiveMonth(initialMonth.month, initialMonth.year, user.uid);
+      await saveUserActiveMonthCloud(user.uid, initialMonth.month, initialMonth.year);
     } catch (err) {
       console.error('Migration execution failed:', err);
       throw err;
@@ -468,6 +533,18 @@ function KassaFinanceApp() {
     setCategories(newCategories);
     setMonthRecords(newMonthRecords);
     saveStoredData(newExpenses, newCategories, newMonthRecords);
+
+    const initialMonth = determineInitialActiveMonth({
+      userId: user?.uid,
+      expenses: newExpenses,
+      monthRecords: newMonthRecords,
+    });
+    setSelectedMonth(initialMonth.month);
+    setSelectedYear(initialMonth.year);
+    saveLocalActiveMonth(initialMonth.month, initialMonth.year, user?.uid);
+    if (user) {
+      saveUserActiveMonthCloud(user.uid, initialMonth.month, initialMonth.year).catch(console.error);
+    }
   };
 
   // Reset to Sep 2026 Test Scenario with exact cloud matching
@@ -487,6 +564,26 @@ function KassaFinanceApp() {
     setSelectedYear(2026);
     setSelectedMonth(9);
     saveStoredData(fresh.expenses, fresh.categories, fresh.monthRecords);
+    saveLocalActiveMonth(9, 2026, user?.uid);
+    if (user) {
+      saveUserActiveMonthCloud(user.uid, 9, 2026).catch(console.error);
+    }
+  };
+
+  const handleSelectMonth = (m: number) => {
+    setSelectedMonth(m);
+    saveLocalActiveMonth(m, selectedYear, user?.uid);
+    if (user) {
+      saveUserActiveMonthCloud(user.uid, m, selectedYear).catch(console.error);
+    }
+  };
+
+  const handleSelectYear = (y: number) => {
+    setSelectedYear(y);
+    saveLocalActiveMonth(selectedMonth, y, user?.uid);
+    if (user) {
+      saveUserActiveMonthCloud(user.uid, selectedMonth, y).catch(console.error);
+    }
   };
 
   const handleExportCSV = () => {
@@ -575,8 +672,8 @@ function KassaFinanceApp() {
         <MonthYearSelector
           selectedYear={selectedYear}
           selectedMonth={selectedMonth}
-          onSelectYear={setSelectedYear}
-          onSelectMonth={setSelectedMonth}
+          onSelectYear={handleSelectYear}
+          onSelectMonth={handleSelectMonth}
           lang={lang}
         />
 

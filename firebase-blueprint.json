@@ -33,6 +33,14 @@
         "hasMigratedLocalData": {
           "type": "boolean",
           "description": "Whether local browser data has already been migrated"
+        },
+        "activeMonth": {
+          "type": "integer",
+          "description": "User currently selected active month (1-12)"
+        },
+        "activeYear": {
+          "type": "integer",
+          "description": "User currently selected active year"
         }
       },
       "required": ["uid", "email"]

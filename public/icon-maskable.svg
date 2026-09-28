@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGradMaskable" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+    <filter id="shadowMaskable" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#064e3b" flood-opacity="0.35" />
+    </filter>
+  </defs>
+
+  <!-- Full-bleed background for maskable icons (no rounded corners so OS can crop to circle/squircle) -->
+  <rect width="512" height="512" fill="url(#bgGradMaskable)" />
+
+  <!-- Wallet Body scaled to 76% centered in safe zone (center at 256, 256) -->
+  <g transform="translate(62, 62) scale(0.76)" filter="url(#shadowMaskable)" fill="none" stroke="#ffffff" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M120 156 C120 134 138 116 160 116 L376 116 C398 116 416 134 416 156 L416 356 C416 378 398 396 376 396 L144 396 C118 396 96 374 96 348 L96 180 C96 167 107 156 120 156 Z" fill="#ffffff" fill-opacity="0.12" />
+    <path d="M144 156 L144 140 C144 126 156 116 170 116 L342 116" stroke-width="24" stroke-opacity="0.8" />
+    <path d="M312 216 L400 216 C413 216 424 227 424 240 L424 292 C424 305 413 316 400 316 L312 316 C303 316 296 309 296 300 L296 232 C296 223 303 216 312 216 Z" fill="#ffffff" />
+    <circle cx="344" cy="266" r="14" fill="#047857" stroke="none" />
+  </g>
+</svg>

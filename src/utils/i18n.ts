@@ -124,6 +124,13 @@ export const translations = {
     testDataQuestion: 'Load the September 2026 test dataset?',
     testDataDesc: 'This will load the official predefined September 2026 test scenario and synchronize your cloud ledger to match it exactly.',
     loadTestData: 'Load Test Data',
+
+    // PWA Install
+    installApp: 'Install App',
+    installIOS: 'Install App',
+    installIOSTitle: 'Install Kassa on iPhone / iPad',
+    installIOSStep1: 'Tap the Share button in the Safari toolbar.',
+    installIOSStep2: 'Scroll down and tap "Add to Home Screen".',
   },
   ar: {
     appTitle: 'كاسّا فاينانس',
@@ -237,6 +244,13 @@ export const translations = {
     testDataQuestion: 'هل ترغب في تحميل بيانات اختبار سبتمبر 2026؟',
     testDataDesc: 'سيؤدي هذا إلى تحميل سيناريو الاختبار الرسمي لشهر سبتمبر 2026 ومزامنة سجلك السحابي ليطابقه تماماً.',
     loadTestData: 'تحميل بيانات الاختبار',
+
+    // PWA Install
+    installApp: 'تثبيت التطبيق',
+    installIOS: 'تثبيت التطبيق',
+    installIOSTitle: 'تثبيت كاسّا على آيفون / آيباد',
+    installIOSStep1: 'اضغط على زر المشاركة (Share) في شريط متصفح سفاري.',
+    installIOSStep2: 'مرر لأسفل واضغط على "إضافة إلى الصفحة الرئيسية" (Add to Home Screen).',
   },
   de: {
     appTitle: 'Kassa Finance',
@@ -350,5 +364,12 @@ export const translations = {
     testDataQuestion: 'Testdatensatz für September 2026 laden?',
     testDataDesc: 'Dies lädt das offizielle vordefinierte Testszenario für September 2026 und synchronisiert Ihr Cloud-Hauptbuch exakt damit.',
     loadTestData: 'Testdaten laden',
+
+    // PWA Install
+    installApp: 'App installieren',
+    installIOS: 'App installieren',
+    installIOSTitle: 'Kassa auf iPhone / iPad installieren',
+    installIOSStep1: 'Tippen Sie in der Safari-Symbolleiste auf die Schaltfläche „Teilen“.',
+    installIOSStep2: 'Scrollen Sie nach unten und tippen Sie auf „Zum Home-Bildschirm“.',
   },
 };

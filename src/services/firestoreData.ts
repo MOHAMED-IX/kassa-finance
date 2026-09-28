@@ -15,6 +15,8 @@ import { Expense, Category, MonthRecord } from '../types/finance';
 export interface UserCloudState {
   hasData: boolean;
   hasMigrated: boolean;
+  activeMonth?: number;
+  activeYear?: number;
   expenses: Expense[];
   categories: Category[];
   monthRecords: MonthRecord[];
@@ -23,7 +25,7 @@ export interface UserCloudState {
 /**
  * Ensure user root document exists in /users/{userId}
  */
-export async function syncUserProfile(user: User): Promise<{ hasMigrated: boolean }> {
+export async function syncUserProfile(user: User): Promise<{ hasMigrated: boolean; activeMonth?: number; activeYear?: number }> {
   const userRef = doc(db, 'users', user.uid);
   try {
     const snap = await getDoc(userRef);
@@ -40,7 +42,11 @@ export async function syncUserProfile(user: User): Promise<{ hasMigrated: boolea
       return { hasMigrated: false };
     } else {
       const data = snap.data();
-      return { hasMigrated: Boolean(data.hasMigratedLocalData) };
+      return {
+        hasMigrated: Boolean(data.hasMigratedLocalData),
+        activeMonth: typeof data.activeMonth === 'number' ? data.activeMonth : undefined,
+        activeYear: typeof data.activeYear === 'number' ? data.activeYear : undefined,
+      };
     }
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`);
@@ -58,9 +64,16 @@ export async function fetchUserCloudData(userId: string): Promise<UserCloudState
 
   try {
     const userDocSnap = await getDoc(doc(db, 'users', userId));
-    const hasMigrated = userDocSnap.exists()
-      ? Boolean(userDocSnap.data().hasMigratedLocalData)
+    const userData = userDocSnap.exists() ? userDocSnap.data() : null;
+    const hasMigrated = userData
+      ? Boolean(userData.hasMigratedLocalData)
       : false;
+    const activeMonth = userData && typeof userData.activeMonth === 'number'
+      ? userData.activeMonth
+      : undefined;
+    const activeYear = userData && typeof userData.activeYear === 'number'
+      ? userData.activeYear
+      : undefined;
 
     // Fetch expenses
     const expSnap = await getDocs(collection(db, 'users', userId, 'expenses'));
@@ -118,12 +131,26 @@ export async function fetchUserCloudData(userId: string): Promise<UserCloudState
     return {
       hasData,
       hasMigrated,
+      activeMonth,
+      activeYear,
       expenses,
       categories,
       monthRecords,
     };
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, `users/${userId}`);
+  }
+}
+
+/**
+ * Persist user's selected active month and year to their user profile
+ */
+export async function saveUserActiveMonthCloud(userId: string, month: number, year: number): Promise<void> {
+  const userRef = doc(db, 'users', userId);
+  try {
+    await setDoc(userRef, { activeMonth: month, activeYear: year }, { merge: true });
+  } catch (error) {
+    console.warn('Could not persist active month to user profile in cloud:', error);
   }
 }
 

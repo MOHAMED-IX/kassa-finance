@@ -26,6 +26,7 @@ import {
   AVAILABLE_LANGUAGES,
 } from '../utils/i18n';
 import { FlagIcon } from './FlagIcon';
+import { PWAInstallButton } from './PWAInstallButton';
 
 export type ActiveTab =
   | 'dashboard'
@@ -400,6 +401,11 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             );
           })}
+
+          {/* In-App PWA Installation Action */}
+          <div className="pt-2">
+            <PWAInstallButton lang={lang} variant="sidebar" />
+          </div>
 
           {/* Dedicated Secondary Action: Test Data (September 2026 Scenario) */}
           {onOpenTestData && (
