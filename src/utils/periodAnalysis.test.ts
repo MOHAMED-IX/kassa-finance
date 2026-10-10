@@ -7,6 +7,7 @@ import {
 import {
   filterExpensesByAnalysisPeriod,
   calculatePeriodFinancialSummary,
+  calculateCycleComparison,
   getUnassignedCycleExpenses,
   findCycleForExpense,
 } from './periodAbstraction';
@@ -651,18 +652,47 @@ describe('Period Analysis - Calendar Month vs Spending Cycle', () => {
         budgets: {},
       };
 
-      // When record.income is 0, allocationResult.hasCycleAllocation applies per existing rule
-      // If no cycle allocation, income is 0
-      const summaryWithoutCycle = calculatePeriodFinancialSummary(
+      // Case 1: When MonthRecord.income is explicitly 0, it MUST override the overlapping cycle income of 2000!
+      const summaryWithCycle = calculatePeriodFinancialSummary(
         [],
         categories,
         [zeroMonthRecord],
         { mode: 'month', year: 2026, month: 9 },
-        [],
+        [cycle],
         'en'
       );
-      expect(summaryWithoutCycle.income).toBe(0);
-      expect(summaryWithoutCycle.incomeNotSet).toBe(true);
+      expect(summaryWithCycle.income).toBe(0);
+      expect(summaryWithCycle.incomeNotSet).toBe(true);
+
+      // Case 2: When MonthRecord has explicit positive income, it overrides cycle income
+      const positiveMonthRecord: MonthRecord = {
+        year: 2026,
+        month: 9,
+        income: 2500,
+        budgets: {},
+      };
+      const summaryPositive = calculatePeriodFinancialSummary(
+        [],
+        categories,
+        [positiveMonthRecord],
+        { mode: 'month', year: 2026, month: 9 },
+        [cycle],
+        'en'
+      );
+      expect(summaryPositive.income).toBe(2500);
+      expect(summaryPositive.incomeNotSet).toBe(false);
+
+      // Case 3: When MonthRecord is absent, it correctly falls back to prorated cycle income
+      const summaryAbsent = calculatePeriodFinancialSummary(
+        [],
+        categories,
+        [],
+        { mode: 'month', year: 2026, month: 9 },
+        [cycle],
+        'en'
+      );
+      expect(summaryAbsent.income).toBe(2000);
+      expect(summaryAbsent.incomeNotSet).toBe(false);
     });
 
     it('aggregates multiple spending cycles overlapping a single calendar month proportionally', () => {
@@ -884,6 +914,270 @@ describe('Period Analysis - Calendar Month vs Spending Cycle', () => {
       expect(result.count).toBe(2);
       expect(result.totalAmount).toBe(100);
       expect(result.unassignedExpenses.map((e) => e.id)).toEqual(['exp-no-date', 'exp-outside']);
+    });
+
+    it('Fix 2 parity & invariants: calculateCycleComparison strictly delegates to calculatePeriodFinancialSummary', () => {
+      // Setup 5 cycles covering:
+      // 1. Normal cycle with income and expenses
+      // 2. Cycle with savings transfers
+      // 3. Cycle with savings returns
+      // 4. Cycle with negative available spending balance
+      // 5. Empty cycle with no transactions
+      const cycleNormal: SpendingCycle = {
+        id: 'cyc-test-normal',
+        startDate: '2026-05-01',
+        endDate: '2026-05-31',
+        income: 2500,
+        notes: 'May Salary',
+        createdAt: 1,
+      };
+
+      const cycleTransfers: SpendingCycle = {
+        id: 'cyc-test-transfers',
+        startDate: '2026-06-01',
+        endDate: '2026-06-30',
+        income: 3000,
+        notes: 'June Salary',
+        createdAt: 2,
+      };
+
+      const cycleReturns: SpendingCycle = {
+        id: 'cyc-test-returns',
+        startDate: '2026-07-01',
+        endDate: '2026-07-31',
+        income: 2800,
+        notes: 'July Salary',
+        createdAt: 3,
+      };
+
+      const cycleDeficit: SpendingCycle = {
+        id: 'cyc-test-deficit',
+        startDate: '2026-08-01',
+        endDate: '2026-08-31',
+        income: 1200,
+        notes: 'August Tight Month',
+        createdAt: 4,
+      };
+
+      const cycleEmpty: SpendingCycle = {
+        id: 'cyc-test-empty',
+        startDate: '2026-09-01',
+        endDate: null,
+        income: 0,
+        notes: 'September Open Empty',
+        createdAt: 5,
+      };
+
+      const allCycles = [cycleNormal, cycleTransfers, cycleReturns, cycleDeficit, cycleEmpty];
+
+      const testExpenses: Expense[] = [
+        // Normal cycle expenses
+        {
+          id: 'exp-norm-1',
+          name: 'Supermarket',
+          amount: 250,
+          categoryId: 'cat-supermarket',
+          store: 'Rewe',
+          date: '2026-05-10',
+          month: 5,
+          year: 2026,
+          isRecurring: false,
+          type: 'variable',
+          createdAt: 10,
+        },
+        {
+          id: 'exp-norm-2',
+          name: 'Rent',
+          amount: 800,
+          categoryId: 'cat-fixed',
+          store: 'Landlord',
+          date: '2026-05-01',
+          month: 5,
+          year: 2026,
+          isRecurring: true,
+          type: 'fixed',
+          createdAt: 11,
+        },
+        // Transfers cycle expenses
+        {
+          id: 'exp-trans-1',
+          name: 'Living expenses',
+          amount: 1000,
+          categoryId: 'cat-supermarket',
+          store: 'Rewe',
+          date: '2026-06-15',
+          month: 6,
+          year: 2026,
+          isRecurring: false,
+          type: 'variable',
+          createdAt: 20,
+        },
+        // Returns cycle expenses
+        {
+          id: 'exp-ret-1',
+          name: 'Shopping',
+          amount: 1200,
+          categoryId: 'cat-shopping',
+          store: 'Amazon',
+          date: '2026-07-10',
+          month: 7,
+          year: 2026,
+          isRecurring: false,
+          type: 'variable',
+          createdAt: 30,
+        },
+        // Deficit cycle expenses
+        {
+          id: 'exp-def-1',
+          name: 'Heavy Tuition & Rent',
+          amount: 1500,
+          categoryId: 'cat-fixed',
+          store: 'University',
+          date: '2026-08-05',
+          month: 8,
+          year: 2026,
+          isRecurring: true,
+          type: 'fixed',
+          createdAt: 40,
+        },
+      ];
+
+      const testBankTxs: BankTransaction[] = [
+        // Savings transfer in June cycle: 500
+        {
+          id: 'tx-cyc-save-500',
+          type: 'saving-transfer',
+          amount: 500,
+          date: '2026-06-20',
+          sourcePeriodMode: 'spending-cycle',
+          sourcePeriodId: 'cyc-test-transfers',
+          createdAt: 100,
+          updatedAt: 100,
+        },
+        // Transfer and return in July cycle: 400 transferred, 150 returned
+        {
+          id: 'tx-cyc-save-400',
+          type: 'saving-transfer',
+          amount: 400,
+          date: '2026-07-05',
+          sourcePeriodMode: 'spending-cycle',
+          sourcePeriodId: 'cyc-test-returns',
+          createdAt: 200,
+          updatedAt: 200,
+        },
+        {
+          id: 'tx-cyc-ret-150',
+          type: 'bank-withdrawal',
+          amount: 150,
+          date: '2026-07-20',
+          note: 'Return to spending cycle balance',
+          sourcePeriodMode: 'spending-cycle',
+          sourcePeriodId: 'cyc-test-returns',
+          createdAt: 201,
+          updatedAt: 201,
+        },
+        // Transfer in Deficit cycle (August): 200 transferred
+        {
+          id: 'tx-cyc-save-200',
+          type: 'saving-transfer',
+          amount: 200,
+          date: '2026-08-10',
+          sourcePeriodMode: 'spending-cycle',
+          sourcePeriodId: 'cyc-test-deficit',
+          createdAt: 300,
+          updatedAt: 300,
+        },
+      ];
+
+      // Execute calculateCycleComparison
+      const comparisonItems = calculateCycleComparison(
+        allCycles,
+        testExpenses,
+        categories,
+        'en',
+        testBankTxs
+      );
+
+      expect(comparisonItems.length).toBe(5);
+
+      // Verify each cycle matches calculatePeriodFinancialSummary directly
+      for (const compItem of comparisonItems) {
+        const canonicalSummary = calculatePeriodFinancialSummary(
+          testExpenses,
+          categories,
+          [],
+          { mode: 'cycle', cycleId: compItem.cycleId },
+          allCycles,
+          'en',
+          testBankTxs
+        );
+
+        // Strict parity between calculateCycleComparison and calculatePeriodFinancialSummary
+        expect(compItem.income).toBe(canonicalSummary.income);
+        expect(compItem.totalExpenses).toBe(canonicalSummary.totalExpenses);
+        expect(compItem.fixedExpenses).toBe(canonicalSummary.fixedExpenses);
+        expect(compItem.variableExpenses).toBe(canonicalSummary.variableExpenses);
+        expect(compItem.unspentIncome).toBe(canonicalSummary.unspentIncome);
+        expect(compItem.remainingMoney).toBe(canonicalSummary.availableSpendingBalance);
+        expect(compItem.availableSpendingBalance).toBe(canonicalSummary.availableSpendingBalance);
+        expect(compItem.actualSavings).toBe(canonicalSummary.actualSavings);
+        expect(compItem.grossTransfers).toBe(canonicalSummary.grossTransfers);
+        expect(compItem.grossReturns).toBe(canonicalSummary.grossReturns);
+        expect(compItem.categoryTotals['cat-saving']).toBe(canonicalSummary.actualSavings);
+      }
+
+      // Explicit numeric financial invariant assertions for each scenario:
+
+      // 1. Normal cycle: Income 2500, Expenses 1050 (800 fixed + 250 var) -> Available 1450, Actual Savings 0
+      const normItem = comparisonItems.find((c) => c.cycleId === 'cyc-test-normal')!;
+      expect(normItem.income).toBe(2500);
+      expect(normItem.totalExpenses).toBe(1050);
+      expect(normItem.unspentIncome).toBe(1450);
+      expect(normItem.actualSavings).toBe(0);
+      expect(normItem.availableSpendingBalance).toBe(1450);
+      expect(normItem.remainingMoney).toBe(1450);
+
+      // 2. Cycle with savings transfers: Income 3000, Expenses 1000 -> Unspent 2000. Transfer 500 -> Actual Savings 500, Available 1500
+      const transItem = comparisonItems.find((c) => c.cycleId === 'cyc-test-transfers')!;
+      expect(transItem.income).toBe(3000);
+      expect(transItem.totalExpenses).toBe(1000);
+      expect(transItem.unspentIncome).toBe(2000);
+      expect(transItem.grossTransfers).toBe(500);
+      expect(transItem.grossReturns).toBe(0);
+      expect(transItem.actualSavings).toBe(500);
+      expect(transItem.availableSpendingBalance).toBe(1500);
+      expect(transItem.categoryTotals['cat-saving']).toBe(500);
+
+      // 3. Cycle with transfers & returns: Income 2800, Expenses 1200 -> Unspent 1600. Transfer 400, Return 150 -> Net Savings 250, Available 1600 - 400 + 150 = 1350
+      const retItem = comparisonItems.find((c) => c.cycleId === 'cyc-test-returns')!;
+      expect(retItem.income).toBe(2800);
+      expect(retItem.totalExpenses).toBe(1200);
+      expect(retItem.unspentIncome).toBe(1600);
+      expect(retItem.grossTransfers).toBe(400);
+      expect(retItem.grossReturns).toBe(150);
+      expect(retItem.actualSavings).toBe(250);
+      expect(retItem.availableSpendingBalance).toBe(1350);
+      expect(retItem.categoryTotals['cat-saving']).toBe(250);
+
+      // 4. Deficit cycle: Income 1200, Expenses 1500 -> Unspent -300. Transfer 200 -> Net Savings 200, Available -300 - 200 = -500 (unclamped!)
+      const defItem = comparisonItems.find((c) => c.cycleId === 'cyc-test-deficit')!;
+      expect(defItem.income).toBe(1200);
+      expect(defItem.totalExpenses).toBe(1500);
+      expect(defItem.unspentIncome).toBe(-300);
+      expect(defItem.grossTransfers).toBe(200);
+      expect(defItem.actualSavings).toBe(200);
+      expect(defItem.availableSpendingBalance).toBe(-500);
+      expect(defItem.remainingMoney).toBe(-500);
+
+      // 5. Empty cycle: Income 0, Expenses 0 -> Available 0, Actual Savings 0
+      const emptyItem = comparisonItems.find((c) => c.cycleId === 'cyc-test-empty')!;
+      expect(emptyItem.income).toBe(0);
+      expect(emptyItem.incomeNotSet).toBe(true);
+      expect(emptyItem.totalExpenses).toBe(0);
+      expect(emptyItem.unspentIncome).toBe(0);
+      expect(emptyItem.actualSavings).toBe(0);
+      expect(emptyItem.availableSpendingBalance).toBe(0);
+      expect(emptyItem.isOngoing).toBe(true);
     });
   });
 });

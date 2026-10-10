@@ -758,14 +758,14 @@ export function calculatePeriodFinancialSummary(
       cycles
     );
 
-    if (record && typeof record.income === 'number' && record.income > 0) {
+    if (record && typeof record.income === 'number' && !isNaN(record.income)) {
       income = record.income;
-      incomeNotSet = false;
+      incomeNotSet = income <= 0;
     } else if (allocationResult.hasCycleAllocation) {
       income = allocationResult.allocatedIncome;
       incomeNotSet = income <= 0;
     } else {
-      income = record ? record.income : 0;
+      income = record && typeof record.income === 'number' ? record.income : 0;
       incomeNotSet = income <= 0;
     }
 
@@ -999,65 +999,26 @@ export function calculateCycleComparison(
   const chronological = [...sanitized].sort((a, b) => a.startDate.localeCompare(b.startDate));
 
   return chronological.map((cycle) => {
-    const cycleExpenses = expenses.filter((exp) => {
-      if (!exp.date) return false;
-      if (exp.date < cycle.startDate) return false;
-      if (cycle.endDate && exp.date > cycle.endDate) return false;
-      return true;
-    });
+    // Authoritatively delegate cycle financial calculations to canonical calculatePeriodFinancialSummary
+    const summary = calculatePeriodFinancialSummary(
+      expenses,
+      categories,
+      [],
+      { mode: 'cycle', cycleId: cycle.id },
+      sanitized,
+      lang,
+      bankTransactions
+    );
 
-    const income = typeof cycle.income === 'number' ? cycle.income : 0;
-    const incomeNotSet =
-      cycle.income === undefined || cycle.income === null || cycle.income <= 0;
-
-    let totalExpenses = 0;
-    let fixedExpenses = 0;
-    let variableExpenses = 0;
     const categoryTotals: Record<string, number> = {};
-
     categories.forEach((cat) => {
       categoryTotals[cat.id] = 0;
     });
-
-    cycleExpenses.forEach((exp) => {
-      const amt = exp.amount;
-      totalExpenses += amt;
-      if (exp.type === 'fixed') {
-        fixedExpenses += amt;
-      } else {
-        variableExpenses += amt;
-      }
-      categoryTotals[exp.categoryId] = (categoryTotals[exp.categoryId] || 0) + amt;
+    summary.categorySummaries.forEach((cs) => {
+      categoryTotals[cs.category.id] = cs.totalSpent;
     });
-
-    // Round
-    totalExpenses = round2(totalExpenses);
-    fixedExpenses = round2(fixedExpenses);
-    variableExpenses = round2(variableExpenses);
-    const unspentIncome = round2(income - totalExpenses);
-
-    let actualSavings = 0;
-    let grossTransfers = 0;
-    let grossReturns = 0;
-    let availableSpendingBalance = unspentIncome;
-
-    if (bankTransactions && bankTransactions.length > 0) {
-      const transferInfo = getPeriodSavingTransferInfo(
-        unspentIncome,
-        'cycle',
-        cycle.id,
-        bankTransactions,
-        cycle.startDate,
-        cycle.endDate || undefined
-      );
-      grossTransfers = transferInfo.grossTransferredAmount;
-      grossReturns = transferInfo.grossReturnedAmount;
-      actualSavings = Math.max(0, transferInfo.netTransferredAmount);
-      availableSpendingBalance = transferInfo.stillAvailable;
-    }
-
-    // Assign actual savings to Saving category
-    categoryTotals['cat-saving'] = actualSavings;
+    // Assign authoritative actual savings to Saving category
+    categoryTotals['cat-saving'] = summary.actualSavings || 0;
 
     const label = formatDateRange(cycle.startDate, cycle.endDate, lang);
 
@@ -1068,17 +1029,17 @@ export function calculateCycleComparison(
       label,
       notes: cycle.notes,
       isOngoing: cycle.endDate === null,
-      income,
-      incomeNotSet,
-      totalExpenses,
-      fixedExpenses,
-      variableExpenses,
-      unspentIncome,
-      remainingMoney: availableSpendingBalance,
-      availableSpendingBalance,
-      actualSavings,
-      grossTransfers,
-      grossReturns,
+      income: summary.income,
+      incomeNotSet: summary.incomeNotSet,
+      totalExpenses: summary.totalExpenses,
+      fixedExpenses: summary.fixedExpenses,
+      variableExpenses: summary.variableExpenses,
+      unspentIncome: summary.unspentIncome !== undefined ? summary.unspentIncome : summary.remainingIncome,
+      remainingMoney: summary.availableSpendingBalance !== undefined ? summary.availableSpendingBalance : summary.remainingIncome,
+      availableSpendingBalance: summary.availableSpendingBalance,
+      actualSavings: summary.actualSavings || 0,
+      grossTransfers: summary.grossTransfers || 0,
+      grossReturns: summary.grossReturns || 0,
       categoryTotals,
       cycle,
     };
