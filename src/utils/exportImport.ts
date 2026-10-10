@@ -1,11 +1,16 @@
-import { Category, Expense, MonthRecord } from '../types/finance';
+import { Category, Expense, MonthRecord, SpendingCycle, BankTransaction, BankTarget, Currency } from '../types/finance';
 
 export interface BackupData {
   version: string;
   exportedAt: string;
+  currency?: Currency;
+  categoryOrder?: string[];
   expenses: Expense[];
   categories: Category[];
   monthRecords: MonthRecord[];
+  spendingCycles?: SpendingCycle[];
+  bankTransactions?: BankTransaction[];
+  bankTargets?: BankTarget[];
 }
 
 /**
@@ -29,14 +34,24 @@ function downloadFile(content: string, fileName: string, contentType: string) {
 export function exportToJSON(
   expenses: Expense[],
   categories: Category[],
-  monthRecords: MonthRecord[]
+  monthRecords: MonthRecord[],
+  spendingCycles: SpendingCycle[] = [],
+  bankTransactions: BankTransaction[] = [],
+  bankTargets: BankTarget[] = [],
+  currency: Currency = 'EUR',
+  categoryOrder?: string[]
 ) {
   const data: BackupData = {
     version: '1.0.0',
     exportedAt: new Date().toISOString(),
+    currency,
+    categoryOrder,
     expenses,
     categories,
     monthRecords,
+    spendingCycles,
+    bankTransactions,
+    bankTargets,
   };
   const jsonStr = JSON.stringify(data, null, 2);
   const filename = `kassa-backup-${new Date().toISOString().slice(0, 10)}.json`;
@@ -193,11 +208,91 @@ export function parseJSONBackup(jsonString: string): {
       }
     }
 
+    // Validate spendingCycles if provided
+    const spendingCycles: SpendingCycle[] = [];
+    if (Array.isArray(parsed.spendingCycles)) {
+      for (let i = 0; i < parsed.spendingCycles.length; i++) {
+        const sc = parsed.spendingCycles[i];
+        if (!sc || typeof sc !== 'object' || !sc.id || typeof sc.startDate !== 'string') {
+          continue;
+        }
+        spendingCycles.push({
+          id: String(sc.id),
+          startDate: String(sc.startDate),
+          endDate: sc.endDate ? String(sc.endDate) : null,
+          income: typeof sc.income === 'number' ? sc.income : null,
+          expectedNextCycleIncome: typeof sc.expectedNextCycleIncome === 'number' ? sc.expectedNextCycleIncome : null,
+          notes: sc.notes ? String(sc.notes) : undefined,
+          budgets: typeof sc.budgets === 'object' && sc.budgets !== null ? sc.budgets : undefined,
+          createdAt: typeof sc.createdAt === 'number' ? sc.createdAt : Date.now(),
+        });
+      }
+    }
+
+    // Validate bankTransactions if provided
+    const bankTransactions: BankTransaction[] = [];
+    if (Array.isArray(parsed.bankTransactions)) {
+      for (let i = 0; i < parsed.bankTransactions.length; i++) {
+        const tx = parsed.bankTransactions[i];
+        if (!tx || typeof tx !== 'object' || !tx.id || typeof tx.amount !== 'number' || !tx.date || !tx.type) {
+          continue;
+        }
+        bankTransactions.push({
+          id: String(tx.id),
+          type: tx.type,
+          amount: Number(tx.amount),
+          date: String(tx.date),
+          note: tx.note ? String(tx.note) : undefined,
+          sourcePeriodMode: tx.sourcePeriodMode ? tx.sourcePeriodMode : undefined,
+          sourcePeriodId: tx.sourcePeriodId ? String(tx.sourcePeriodId) : undefined,
+          targetId: tx.targetId ? String(tx.targetId) : undefined,
+          createdAt: typeof tx.createdAt === 'number' ? tx.createdAt : Date.now(),
+          updatedAt: typeof tx.updatedAt === 'number' ? tx.updatedAt : Date.now(),
+        });
+      }
+    }
+
+    // Validate bankTargets if provided
+    const bankTargets: BankTarget[] = [];
+    if (Array.isArray(parsed.bankTargets)) {
+      for (let i = 0; i < parsed.bankTargets.length; i++) {
+        const target = parsed.bankTargets[i];
+        if (!target || typeof target !== 'object' || !target.id || typeof target.name !== 'string' || typeof target.targetAmount !== 'number') {
+          continue;
+        }
+        bankTargets.push({
+          id: String(target.id),
+          name: String(target.name),
+          targetAmount: Number(target.targetAmount),
+          allocatedAmount: typeof target.allocatedAmount === 'number' ? target.allocatedAmount : 0,
+          targetDate: target.targetDate ? String(target.targetDate) : undefined,
+          icon: target.icon ? String(target.icon) : undefined,
+          accent: target.accent ? String(target.accent) : undefined,
+          active: target.active !== false,
+          completed: Boolean(target.completed),
+          createdAt: typeof target.createdAt === 'number' ? target.createdAt : Date.now(),
+          updatedAt: typeof target.updatedAt === 'number' ? target.updatedAt : Date.now(),
+        });
+      }
+    }
+
+    const currency: Currency =
+      parsed.currency === 'USD' || parsed.currency === 'EGP' || parsed.currency === 'EUR'
+        ? parsed.currency
+        : 'EUR';
+
+    const categoryOrder: string[] | undefined =
+      Array.isArray(parsed.categoryOrder) && parsed.categoryOrder.every((id: any) => typeof id === 'string')
+        ? parsed.categoryOrder
+        : undefined;
+
     return {
       success: true,
       data: {
         version: parsed.version || '1.0.0',
         exportedAt: parsed.exportedAt || new Date().toISOString(),
+        currency,
+        categoryOrder,
         expenses: parsed.expenses.map((e: any) => ({
           id: String(e.id),
           name: String(e.name),
@@ -214,6 +309,9 @@ export function parseJSONBackup(jsonString: string): {
         })),
         categories,
         monthRecords,
+        spendingCycles,
+        bankTransactions,
+        bankTargets,
       },
     };
   } catch (err: unknown) {

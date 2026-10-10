@@ -16,6 +16,28 @@ import {
   LucideIcon,
   PiggyBank,
   AlertTriangle,
+  Car,
+  Plane,
+  Heart,
+  Laptop,
+  Wallet,
+  Coffee,
+  Dumbbell,
+  BookOpen,
+  Smartphone,
+  Briefcase,
+  Gift,
+  Music,
+  Film,
+  Baby,
+  PawPrint,
+  Shirt,
+  Wrench,
+  Wifi,
+  Tv,
+  Pizza,
+  Bike,
+  Camera,
 } from 'lucide-react';
 import { Category } from '../types/finance';
 
@@ -28,6 +50,110 @@ export interface CategoryVisualConfig {
   bgColorClass: string; // Tailwind subtle bg color e.g. 'bg-blue-50 dark:bg-blue-950/40'
   borderColorClass: string; // Tailwind border color e.g. 'border-blue-200 dark:border-blue-800'
 }
+
+/**
+ * Central dictionary mapping Lucide icon names to actual Lucide icon components.
+ */
+export const CATEGORY_ICON_MAP: Record<string, LucideIcon> = {
+  // Built-ins
+  Receipt,
+  ShoppingCart,
+  GraduationCap,
+  Bus,
+  ShoppingBag,
+  User,
+  HeartPulse,
+  Gamepad2,
+  Tag,
+  Home,
+  Utensils,
+  PiggyBank,
+  AlertTriangle,
+  Layers,
+  Sparkles,
+
+  // Rich initial category icons
+  Car,
+  Plane,
+  Heart,
+  Laptop,
+  Wallet,
+  Coffee,
+  Dumbbell,
+  BookOpen,
+  Smartphone,
+  Briefcase,
+  Gift,
+  Music,
+  Film,
+  Baby,
+  PawPrint,
+  Shirt,
+  Wrench,
+  Wifi,
+  Tv,
+  Pizza,
+  Bike,
+  Camera,
+};
+
+export interface CategoryIconOption {
+  name: string;
+  icon: LucideIcon;
+}
+
+/**
+ * Initial compact set of popular category icons (12 icons)
+ */
+export const POPULAR_CATEGORY_ICONS: CategoryIconOption[] = [
+  { name: 'ShoppingCart', icon: ShoppingCart },
+  { name: 'Utensils', icon: Utensils },
+  { name: 'Coffee', icon: Coffee },
+  { name: 'Home', icon: Home },
+  { name: 'Car', icon: Car },
+  { name: 'Bus', icon: Bus },
+  { name: 'GraduationCap', icon: GraduationCap },
+  { name: 'Briefcase', icon: Briefcase },
+  { name: 'Receipt', icon: Receipt },
+  { name: 'Wallet', icon: Wallet },
+  { name: 'HeartPulse', icon: HeartPulse },
+  { name: 'ShoppingBag', icon: ShoppingBag },
+];
+
+/**
+ * Extended set of category icons displayed when clicking "More" (21 additional icons)
+ */
+export const EXTENDED_CATEGORY_ICONS: CategoryIconOption[] = [
+  { name: 'Plane', icon: Plane },
+  { name: 'Heart', icon: Heart },
+  { name: 'Dumbbell', icon: Dumbbell },
+  { name: 'Laptop', icon: Laptop },
+  { name: 'Smartphone', icon: Smartphone },
+  { name: 'Gamepad2', icon: Gamepad2 },
+  { name: 'BookOpen', icon: BookOpen },
+  { name: 'Music', icon: Music },
+  { name: 'Film', icon: Film },
+  { name: 'Tv', icon: Tv },
+  { name: 'Wifi', icon: Wifi },
+  { name: 'Shirt', icon: Shirt },
+  { name: 'Gift', icon: Gift },
+  { name: 'Baby', icon: Baby },
+  { name: 'PawPrint', icon: PawPrint },
+  { name: 'Pizza', icon: Pizza },
+  { name: 'Bike', icon: Bike },
+  { name: 'Camera', icon: Camera },
+  { name: 'Wrench', icon: Wrench },
+  { name: 'PiggyBank', icon: PiggyBank },
+  { name: 'Tag', icon: Tag },
+];
+
+/**
+ * Combined full list of category icons
+ */
+export const ALL_CATEGORY_ICONS: CategoryIconOption[] = [
+  ...POPULAR_CATEGORY_ICONS,
+  ...EXTENDED_CATEGORY_ICONS,
+];
 
 /**
  * Standard centralized category configuration.
@@ -124,7 +250,7 @@ export const StandardOverBudgetIcon = AlertTriangle;
 
 /**
  * Returns the centralized visual configuration (icon, color, styling) for any category.
- * Resolves by ID, name keywords, or custom Category object.
+ * Resolves by ID, user-selected iconName, name keywords, or custom Category object.
  */
 export function getCategoryVisual(
   categoryOrId?: Category | string | null,
@@ -145,17 +271,49 @@ export function getCategoryVisual(
   const catId = typeof categoryOrId === 'string' ? categoryOrId : categoryOrId.id;
   const catName = typeof categoryOrId === 'string' ? categoryOrId : categoryOrId.name;
   const customColor = typeof categoryOrId === 'object' && categoryOrId?.color ? categoryOrId.color : fallbackColor;
+  const customIconName = typeof categoryOrId === 'object' && categoryOrId?.iconName ? categoryOrId.iconName : undefined;
 
-  // Direct match by ID
+  // 1. Direct match by ID for built-in categories
   if (catId && CENTRAL_CATEGORY_CONFIGS[catId]) {
     const config = CENTRAL_CATEGORY_CONFIGS[catId];
     return {
       ...config,
       color: customColor || config.color,
+      icon: (customIconName && CATEGORY_ICON_MAP[customIconName]) || config.icon,
     };
   }
 
-  // Normalize string for keyword matching
+  // 2. Direct match by explicitly configured iconName on custom categories
+  if (customIconName && CATEGORY_ICON_MAP[customIconName]) {
+    const ResolvedIcon = CATEGORY_ICON_MAP[customIconName];
+    const color = customColor || '#10B981';
+    return {
+      id: catId || 'custom',
+      name: catName || 'Category',
+      icon: ResolvedIcon,
+      color,
+      textColorClass: 'text-slate-700 dark:text-slate-200',
+      bgColorClass: 'bg-slate-100 dark:bg-slate-800',
+      borderColorClass: 'border-slate-200 dark:border-slate-700',
+    };
+  }
+
+  // 3. Direct match if categoryOrId is an icon name string in CATEGORY_ICON_MAP
+  if (typeof categoryOrId === 'string' && CATEGORY_ICON_MAP[categoryOrId]) {
+    const ResolvedIcon = CATEGORY_ICON_MAP[categoryOrId];
+    const color = fallbackColor || '#10B981';
+    return {
+      id: categoryOrId,
+      name: categoryOrId,
+      icon: ResolvedIcon,
+      color,
+      textColorClass: 'text-slate-700 dark:text-slate-200',
+      bgColorClass: 'bg-slate-100 dark:bg-slate-800',
+      borderColorClass: 'border-slate-200 dark:border-slate-700',
+    };
+  }
+
+  // 4. Normalize string for keyword matching
   const lower = (catName || catId || '').toLowerCase();
 
   if (lower.includes('fixed') || lower.includes('thabit') || lower.includes('rent') || lower.includes('bill')) {
@@ -221,7 +379,7 @@ export function getCategoryVisual(
     };
   }
 
-  // Fallback generic category configuration with preserved accent color
+  // 5. Fallback generic category configuration with preserved accent color
   const color = customColor || '#64748B';
   return {
     id: catId || 'custom',

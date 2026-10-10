@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Category, Expense, ExpenseType } from '../types/finance';
-import { formatEUR, round2 } from '../utils/formatters';
+import { formatEUR, round2, getTodayISO } from '../utils/formatters';
 import { Language, translations } from '../utils/i18n';
 import { X, Zap, Check, Calculator } from 'lucide-react';
 import { CategoryIcon } from './CategoryIcon';
@@ -26,20 +26,30 @@ export const FastBatchModal: React.FC<FastBatchModalProps> = ({
 }) => {
   const t = translations[lang];
 
-  const defaultDate = () => {
-    const mStr = selectedMonth < 10 ? `0${selectedMonth}` : `${selectedMonth}`;
-    return `${selectedYear}-${mStr}-26`;
-  };
-
   const [store, setStore] = useState('Lidl');
   const [categoryId, setCategoryId] = useState(
     categories.find((c) => c.id === 'cat-supermarket')?.id || categories[0]?.id || ''
   );
   const [rawInput, setRawInput] = useState('');
-  const [baseDate, setBaseDate] = useState(defaultDate());
+  const [baseDate, setBaseDate] = useState(getTodayISO());
   const [type, setType] = useState<ExpenseType>('variable');
   const [isRecurring, setIsRecurring] = useState(false);
   const [prefixName, setPrefixName] = useState('Groceries');
+
+  // Reset fields to fresh state with TODAY's local date whenever modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setBaseDate(getTodayISO());
+      setRawInput('');
+      setStore('Lidl');
+      setCategoryId(
+        categories.find((c) => c.id === 'cat-supermarket')?.id || categories[0]?.id || ''
+      );
+      setPrefixName('Groceries');
+      setType('variable');
+      setIsRecurring(false);
+    }
+  }, [isOpen, categories]);
 
   // Parse numbers from input (splits on newline, comma, semicolon, space, or tab)
   const parsedAmounts = useMemo(() => {
@@ -47,8 +57,7 @@ export const FastBatchModal: React.FC<FastBatchModalProps> = ({
 
     // Replace German commas (e.g. 66,25 -> 66.25) and currency symbols
     const cleanStr = rawInput
-      .replace(/€/g, '')
-      .replace(/EUR/gi, '')
+      .replace(/€|\$|E£|ج\.م|EGP|USD|EUR/gi, '')
       .replace(/,/g, '.');
 
     const tokens = cleanStr.split(/[\n\r\t ;]+/);
@@ -136,7 +145,7 @@ export const FastBatchModal: React.FC<FastBatchModalProps> = ({
                 list="batch-stores"
                 value={store}
                 onChange={(e) => setStore(e.target.value)}
-                placeholder="e.g. Lidl"
+                placeholder={t.storePlaceholder}
                 className="w-full text-xs px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
               />
               <datalist id="batch-stores">
@@ -176,7 +185,7 @@ export const FastBatchModal: React.FC<FastBatchModalProps> = ({
                 {t.amountsInput} *
               </label>
               <span className="text-[11px] text-slate-400 font-mono">
-                {parsedAmounts.length} amounts parsed
+                {t.amountsParsedCount.replace('{count}', parsedAmounts.length.toString())}
               </span>
             </div>
             <textarea
@@ -184,7 +193,7 @@ export const FastBatchModal: React.FC<FastBatchModalProps> = ({
               required
               value={rawInput}
               onChange={(e) => setRawInput(e.target.value)}
-              placeholder="Paste receipt totals or type:&#10;66.25&#10;17.83&#10;5.90&#10;3.87&#10;7.15"
+              placeholder={t.batchPlaceholder}
               className="w-full text-sm font-mono p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
             />
           </div>
@@ -195,10 +204,10 @@ export const FastBatchModal: React.FC<FastBatchModalProps> = ({
               <Calculator className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <div>
                 <span className="text-xs text-emerald-800 dark:text-emerald-300 font-medium">
-                  {store || 'Store'} Total
+                  {t.storeTotalLabel.replace('{store}', store || t.colStore)}
                 </span>
                 <span className="block text-[11px] text-emerald-600 dark:text-emerald-400">
-                  {parsedAmounts.length} separate transactions will be recorded
+                  {t.separateTransactionsRecorded.replace('{count}', parsedAmounts.length.toString())}
                 </span>
               </div>
             </div>
@@ -211,19 +220,19 @@ export const FastBatchModal: React.FC<FastBatchModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Name Prefix
+                {t.namePrefix}
               </label>
               <input
                 type="text"
                 value={prefixName}
                 onChange={(e) => setPrefixName(e.target.value)}
-                placeholder="e.g. Groceries"
+                placeholder={t.namePrefixPlaceholder}
                 className="w-full text-xs px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-hidden"
               />
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Date
+                {t.date}
               </label>
               <input
                 type="date"

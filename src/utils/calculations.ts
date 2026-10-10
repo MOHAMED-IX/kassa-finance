@@ -1,160 +1,68 @@
 import {
+  BankTransaction,
   Category,
   CategorySummary,
   Expense,
   FinancialSummary,
   MonthComparisonItem,
   MonthRecord,
+  SpendingCycle,
   StoreSummary,
 } from '../types/finance';
 import { MONTH_NAMES_EN, round2 } from './formatters';
+import {
+  calculateAllocatedCategoryBudgetsForMonth,
+  calculateAllocatedIncomeForMonth,
+  calculatePeriodFinancialSummary,
+} from './periodAbstraction';
+import { getPeriodSavingTransferInfo } from './bankCalculations';
+
+export * from './periodAbstraction';
+
+/**
+ * Checks if an expense belongs to a specific calendar month (year, month).
+ * Uses the actual transaction date (YYYY-MM-DD) if present, falling back to exp.year & exp.month.
+ */
+export function isExpenseInCalendarMonth(
+  exp: Expense,
+  year: number,
+  month: number
+): boolean {
+  if (exp.date && typeof exp.date === 'string') {
+    const parts = exp.date.split('-');
+    if (parts.length >= 2) {
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      if (!isNaN(y) && !isNaN(m)) {
+        return y === year && m === month;
+      }
+    }
+  }
+  return exp.year === year && exp.month === month;
+}
 
 /**
  * Calculates complete financial metrics for a specific month and year.
+ * Canonical delegate to calculatePeriodFinancialSummary({ mode: 'month', year, month }).
  */
 export function calculateFinancialSummary(
   expenses: Expense[],
   categories: Category[],
   monthRecords: MonthRecord[],
   year: number,
-  month: number
+  month: number,
+  spendingCycles: SpendingCycle[] = [],
+  bankTransactions: BankTransaction[] = []
 ): FinancialSummary {
-  // Filter expenses strictly for this month and year
-  const currentExpenses = expenses.filter(
-    (exp) => exp.year === year && exp.month === month
+  return calculatePeriodFinancialSummary(
+    expenses,
+    categories,
+    monthRecords,
+    { mode: 'month', year, month },
+    spendingCycles,
+    'en',
+    bankTransactions
   );
-
-  // Month Record for income and category budgets
-  const monthRecord = monthRecords.find(
-    (mr) => mr.year === year && mr.month === month
-  );
-  const income = monthRecord ? monthRecord.income : 0;
-  const customBudgets = monthRecord ? monthRecord.budgets : {};
-
-  let totalExpenses = 0;
-  let fixedExpenses = 0;
-  let variableExpenses = 0;
-  let recurringTotal = 0;
-  let oneTimeTotal = 0;
-
-  // Track category spent map
-  const catSpentMap: Record<string, { total: number; count: number }> = {};
-  categories.forEach((cat) => {
-    catSpentMap[cat.id] = { total: 0, count: 0 };
-  });
-
-  // Track store spent map
-  const storeMap: Record<
-    string,
-    {
-      store: string;
-      categoryId: string;
-      categoryName: string;
-      total: number;
-      count: number;
-      expenses: Expense[];
-    }
-  > = {};
-
-  currentExpenses.forEach((exp) => {
-    const amt = exp.amount;
-    totalExpenses += amt;
-
-    if (exp.type === 'fixed') {
-      fixedExpenses += amt;
-    } else {
-      variableExpenses += amt;
-    }
-
-    if (exp.isRecurring) {
-      recurringTotal += amt;
-    } else {
-      oneTimeTotal += amt;
-    }
-
-    // Category tracking
-    if (!catSpentMap[exp.categoryId]) {
-      catSpentMap[exp.categoryId] = { total: 0, count: 0 };
-    }
-    catSpentMap[exp.categoryId].total += amt;
-    catSpentMap[exp.categoryId].count += 1;
-
-    // Store tracking (normalized by trimmed lower case for matching, preserved display name)
-    const storeKey = (exp.store || 'Unknown').trim();
-    const cat = categories.find((c) => c.id === exp.categoryId);
-    const catName = cat ? cat.name : 'Other';
-
-    if (!storeMap[storeKey]) {
-      storeMap[storeKey] = {
-        store: storeKey,
-        categoryId: exp.categoryId,
-        categoryName: catName,
-        total: 0,
-        count: 0,
-        expenses: [],
-      };
-    }
-    storeMap[storeKey].total += amt;
-    storeMap[storeKey].count += 1;
-    storeMap[storeKey].expenses.push(exp);
-  });
-
-  // Round global numbers
-  totalExpenses = round2(totalExpenses);
-  fixedExpenses = round2(fixedExpenses);
-  variableExpenses = round2(variableExpenses);
-  recurringTotal = round2(recurringTotal);
-  oneTimeTotal = round2(oneTimeTotal);
-
-  const remainingIncome = round2(income - totalExpenses);
-  const spendingWithoutOneTime = round2(totalExpenses - oneTimeTotal);
-
-  // Category Summaries
-  const categorySummaries: CategorySummary[] = categories.map((cat) => {
-    const spentData = catSpentMap[cat.id] || { total: 0, count: 0 };
-    const totalSpent = round2(spentData.total);
-    const budget = customBudgets[cat.id] !== undefined ? customBudgets[cat.id] : 0;
-    const remainingBudget = round2(budget - totalSpent);
-    const percentageUsed = budget > 0 ? round2((totalSpent / budget) * 100) : 0;
-    const isOverBudget = budget > 0 && totalSpent > budget;
-
-    return {
-      category: cat,
-      totalSpent,
-      budget,
-      remainingBudget,
-      percentageUsed,
-      isOverBudget,
-      count: spentData.count,
-    };
-  });
-
-  // Store summaries sorted by highest spending
-  const storeSummaries: StoreSummary[] = Object.values(storeMap)
-    .map((s) => ({
-      store: s.store,
-      categoryId: s.categoryId,
-      categoryName: s.categoryName,
-      totalSpent: round2(s.total),
-      transactionCount: s.count,
-      expenses: s.expenses.sort((a, b) => b.amount - a.amount),
-    }))
-    .sort((a, b) => b.totalSpent - a.totalSpent);
-
-  return {
-    year,
-    month,
-    income,
-    totalExpenses,
-    remainingIncome,
-    fixedExpenses,
-    variableExpenses,
-    recurringTotal,
-    oneTimeTotal,
-    spendingWithoutOneTime,
-    categorySummaries,
-    storeSummaries,
-  };
 }
 
 /**
@@ -164,7 +72,9 @@ export function calculateYearMonthlyComparison(
   expenses: Expense[],
   categories: Category[],
   monthRecords: MonthRecord[],
-  year: number
+  year: number,
+  spendingCycles: SpendingCycle[] = [],
+  bankTransactions: BankTransaction[] = []
 ): MonthComparisonItem[] {
   const result: MonthComparisonItem[] = [];
 
@@ -174,13 +84,17 @@ export function calculateYearMonthlyComparison(
       categories,
       monthRecords,
       year,
-      m
+      m,
+      spendingCycles,
+      bankTransactions
     );
 
     const categoryTotals: Record<string, number> = {};
     summary.categorySummaries.forEach((cs) => {
       categoryTotals[cs.category.id] = cs.totalSpent;
     });
+    // Authoritative actual savings for Saving category
+    categoryTotals['cat-saving'] = summary.actualSavings || 0;
 
     result.push({
       year,
@@ -190,10 +104,58 @@ export function calculateYearMonthlyComparison(
       totalExpenses: summary.totalExpenses,
       fixedExpenses: summary.fixedExpenses,
       variableExpenses: summary.variableExpenses,
-      remainingMoney: summary.remainingIncome,
+      unspentIncome: summary.unspentIncome !== undefined ? summary.unspentIncome : summary.remainingIncome,
+      remainingMoney: summary.availableSpendingBalance !== undefined ? summary.availableSpendingBalance : summary.remainingIncome,
+      availableSpendingBalance: summary.availableSpendingBalance,
+      actualSavings: summary.actualSavings || 0,
+      grossTransfers: summary.grossTransfers || 0,
+      grossReturns: summary.grossReturns || 0,
       categoryTotals,
     });
   }
 
   return result;
 }
+
+/**
+ * Filter expenses belonging to a specific SpendingCycle.
+ * Date matching:
+ * - date >= cycle.startDate
+ * - if cycle.endDate is set: date <= cycle.endDate
+ */
+export function filterExpensesByCycle(expenses: Expense[], cycle: SpendingCycle): Expense[] {
+  if (!cycle || !cycle.startDate) return [];
+  return expenses.filter((exp) => {
+    if (!exp.date) return false;
+    if (exp.date < cycle.startDate) return false;
+    if (cycle.endDate && exp.date > cycle.endDate) return false;
+    return true;
+  });
+}
+
+/**
+ * Calculates complete financial metrics for a specific SpendingCycle.
+ * Preserved for backwards compatibility, delegating strictly to canonical calculatePeriodFinancialSummary.
+ */
+export function calculateCycleFinancialSummary(
+  expenses: Expense[],
+  categories: Category[],
+  cycle: SpendingCycle,
+  budgets: Record<string, number> = {},
+  bankTransactions: BankTransaction[] = []
+): FinancialSummary {
+  const customCycle: SpendingCycle = budgets && Object.keys(budgets).length > 0
+    ? { ...cycle, budgets: { ...cycle.budgets, ...budgets } }
+    : cycle;
+
+  return calculatePeriodFinancialSummary(
+    expenses,
+    categories,
+    [],
+    { mode: 'cycle', cycleId: cycle.id },
+    [customCycle],
+    'en',
+    bankTransactions
+  );
+}
+

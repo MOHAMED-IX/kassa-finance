@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { StoreSummary } from '../types/finance';
-import { formatDateEU, formatEUR } from '../utils/formatters';
-import { Language } from '../utils/i18n';
-import { Store, ChevronDown, ChevronUp, Calendar, Tag } from 'lucide-react';
+import { PeriodMode, SpendingCycle, StoreSummary } from '../types/finance';
+import { formatDateEU, formatDateRange, formatEUR } from '../utils/formatters';
+import { Language, translations } from '../utils/i18n';
+import { Store, ChevronDown, ChevronUp, Calendar, Tag, RotateCw } from 'lucide-react';
 import { CategoryIcon } from './CategoryIcon';
 
 interface StoreClusteringViewProps {
@@ -10,6 +10,9 @@ interface StoreClusteringViewProps {
   selectedMonth: number;
   selectedYear: number;
   lang: Language;
+  periodMode?: PeriodMode;
+  periodLabel?: string;
+  currentCycle?: SpendingCycle | null;
 }
 
 export const StoreClusteringView: React.FC<StoreClusteringViewProps> = ({
@@ -17,7 +20,18 @@ export const StoreClusteringView: React.FC<StoreClusteringViewProps> = ({
   selectedMonth,
   selectedYear,
   lang,
+  periodMode = 'month',
+  periodLabel,
+  currentCycle,
 }) => {
+  const t = translations[lang];
+  const isCycleMode = periodMode === 'cycle';
+  const displayPeriod =
+    periodLabel ||
+    (isCycleMode && currentCycle
+      ? formatDateRange(currentCycle.startDate, currentCycle.endDate, lang)
+      : `${selectedMonth}/${selectedYear}`);
+
   const [expandedStore, setExpandedStore] = useState<string | null>(
     storeSummaries[0]?.store || null
   );
@@ -31,27 +45,34 @@ export const StoreClusteringView: React.FC<StoreClusteringViewProps> = ({
   return (
     <div className="w-full space-y-4 sm:space-y-6">
       
-      {/* Header */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-3.5 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-          <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 shrink-0">
-            <Store className="w-5 h-5" />
+      {/* Store & Merchant Aggregations Summary Card */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-3.5 sm:p-5 shadow-xs flex flex-col gap-3.5 sm:gap-4 w-full">
+        {/* Row 1 & 2: Icon + Title & Description */}
+        <div className="flex items-start gap-3 sm:gap-3.5 min-w-0 w-full">
+          <div className="p-2 sm:p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5">
+            {isCycleMode ? <RotateCw className="w-5 h-5 shrink-0" /> : <Store className="w-5 h-5 shrink-0" />}
           </div>
-          <div className="min-w-0 flex-1">
-            <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white font-['Plus_Jakarta_Sans',sans-serif] truncate">
-              {lang === 'ar' ? 'تجميع وتحليل المتاجر' : 'Store & Merchant Aggregations'} ({selectedMonth}/{selectedYear})
+          <div className="min-w-0 flex-1 space-y-1">
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white font-['Plus_Jakarta_Sans',sans-serif] leading-snug break-words">
+              <span>{t.storeAggregationsTitle}</span>
+              {displayPeriod && (
+                <span className="font-normal text-slate-500 dark:text-slate-400 text-sm sm:text-base ml-1.5 rtl:mr-1.5">
+                  ({displayPeriod})
+                </span>
+              )}
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 truncate sm:whitespace-normal">
-              Aggregated purchases per merchant, total spend, and itemized transaction receipts.
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2 break-words">
+              {t.storeAggregationsDesc}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center justify-between sm:justify-end sm:text-right pt-2.5 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-800 shrink-0">
-          <span className="text-xs text-slate-500 dark:text-slate-400 sm:block">
-            Tracked Merchants
+        {/* Dedicated Metric Row: Tracked Merchants */}
+        <div className="pt-3 sm:pt-3.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-3 w-full">
+          <span className="text-xs sm:text-sm font-medium text-slate-500 dark:text-slate-400">
+            {t.trackedMerchants}
           </span>
-          <span className="text-xl sm:text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400 tabular-nums sm:ml-0 ml-2">
+          <span className="text-xl sm:text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400 tabular-nums">
             {storeSummaries.length}
           </span>
         </div>
@@ -61,7 +82,7 @@ export const StoreClusteringView: React.FC<StoreClusteringViewProps> = ({
       <div className="w-full space-y-3">
         {storeSummaries.length === 0 ? (
           <div className="py-12 text-center text-sm text-slate-400 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl">
-            No merchant expenses recorded for this month.
+            {t.noMerchantExpenses.replace('{period}', isCycleMode ? t.spendingCycleWord : t.monthWord)}
           </div>
         ) : (
           storeSummaries.map((st) => {
@@ -97,18 +118,22 @@ export const StoreClusteringView: React.FC<StoreClusteringViewProps> = ({
                         </span>
                       </div>
                       <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2 mt-0.5">
-                        <span>{st.transactionCount} transactions</span>
+                        <span>{t.transactionCount.replace('{count}', String(st.transactionCount))}</span>
                         <span>·</span>
-                        <span>Avg: {formatEUR(avgBasket)} / visit</span>
+                        <span>{t.avgPerVisit.replace('{amount}', formatEUR(avgBasket))}</span>
                         <span>·</span>
-                        <span>{percentOfTotal}% of monthly spend</span>
+                        <span>
+                          {isCycleMode
+                            ? t.percentOfCycleSpend.replace('{percent}', percentOfTotal)
+                            : t.percentOfMonthlySpend.replace('{percent}', percentOfTotal)}
+                        </span>
                       </p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-4 shrink-0">
                     <div className="text-right">
-                      <span className="block text-xs text-slate-400">Store Total</span>
+                      <span className="block text-xs text-slate-400">{t.storeTotal}</span>
                       <span className="text-lg font-bold font-mono text-slate-900 dark:text-white tabular-nums">
                         {formatEUR(st.totalSpent)}
                       </span>
@@ -148,7 +173,7 @@ export const StoreClusteringView: React.FC<StoreClusteringViewProps> = ({
 
                     <div className="flex items-center gap-1 shrink-0 p-1 text-slate-400">
                       <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                        {isExpanded ? 'Hide' : 'Details'}
+                        {isExpanded ? t.hide : t.details}
                       </span>
                       {isExpanded ? (
                         <ChevronUp className="w-4 h-4" />
@@ -161,7 +186,7 @@ export const StoreClusteringView: React.FC<StoreClusteringViewProps> = ({
                   {/* Mobile Total Spend Highlight */}
                   <div className="flex items-baseline justify-between py-1.5 px-3 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-lg">
                     <span className="text-xs font-medium text-emerald-800 dark:text-emerald-300">
-                      Total Spend
+                      {t.totalSpend}
                     </span>
                     <span className="text-base font-bold font-mono text-emerald-700 dark:text-emerald-300 tabular-nums">
                       {formatEUR(st.totalSpent)}
@@ -171,21 +196,21 @@ export const StoreClusteringView: React.FC<StoreClusteringViewProps> = ({
                   {/* Mobile 3-Column Stats Grid */}
                   <div className="grid grid-cols-3 gap-1.5 text-center text-xs">
                     <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50">
-                      <span className="block text-[10px] text-slate-400">Orders</span>
+                      <span className="block text-[10px] text-slate-400">{t.orders}</span>
                       <span className="font-semibold font-mono text-slate-800 dark:text-slate-200 text-xs tabular-nums">
                         {st.transactionCount}
                       </span>
                     </div>
 
                     <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50">
-                      <span className="block text-[10px] text-slate-400">Avg / Order</span>
+                      <span className="block text-[10px] text-slate-400">{t.avgPerOrder}</span>
                       <span className="font-semibold font-mono text-slate-800 dark:text-slate-200 text-[11px] tabular-nums truncate block">
                         {formatEUR(avgBasket)}
                       </span>
                     </div>
 
                     <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50">
-                      <span className="block text-[10px] text-slate-400">Share</span>
+                      <span className="block text-[10px] text-slate-400">{t.share}</span>
                       <span className="font-semibold font-mono text-slate-800 dark:text-slate-200 text-xs tabular-nums">
                         {percentOfTotal}%
                       </span>
@@ -202,10 +227,10 @@ export const StoreClusteringView: React.FC<StoreClusteringViewProps> = ({
                       <table className="w-full text-left text-xs">
                         <thead>
                           <tr className="text-slate-400 text-[11px] border-b border-slate-200/60 dark:border-slate-700/60">
-                            <th className="py-2 font-medium">Date</th>
-                            <th className="py-2 font-medium">Description</th>
-                            <th className="py-2 font-medium">Type</th>
-                            <th className="py-2 font-medium text-right">Amount</th>
+                            <th className="py-2 font-medium">{t.date}</th>
+                            <th className="py-2 font-medium">{t.description}</th>
+                            <th className="py-2 font-medium">{t.type}</th>
+                            <th className="py-2 font-medium text-right">{t.amount}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
@@ -223,7 +248,7 @@ export const StoreClusteringView: React.FC<StoreClusteringViewProps> = ({
                                 )}
                               </td>
                               <td className="py-2 text-slate-500 whitespace-nowrap">
-                                {e.type === 'fixed' ? 'Fixed' : 'Variable'}
+                                {e.type === 'fixed' ? t.fixed : t.variable}
                               </td>
                               <td className="py-2 text-right font-mono font-bold text-slate-900 dark:text-white tabular-nums whitespace-nowrap">
                                 {formatEUR(e.amount)}
@@ -237,7 +262,7 @@ export const StoreClusteringView: React.FC<StoreClusteringViewProps> = ({
                     {/* Mobile Stacked Card List (< sm, zero horizontal scrolling) */}
                     <div className="sm:hidden p-3 space-y-2">
                       <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-1">
-                        Transactions ({st.expenses.length})
+                        {t.transactionsReceiptsTitle.replace('{count}', String(st.expenses.length))}
                       </div>
                       {st.expenses.map((e) => (
                         <div
@@ -251,7 +276,7 @@ export const StoreClusteringView: React.FC<StoreClusteringViewProps> = ({
                             <div className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5">
                               <span className="font-mono">{formatDateEU(e.date)}</span>
                               <span>·</span>
-                              <span>{e.type === 'fixed' ? 'Fixed' : 'Variable'}</span>
+                              <span>{e.type === 'fixed' ? t.fixed : t.variable}</span>
                               {e.notes && (
                                 <>
                                   <span>·</span>

@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Wallet, ShieldCheck, Cloud, Database, Sun, Moon, Check } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { Language, translations, AVAILABLE_LANGUAGES } from '../utils/i18n';
+import { Language, translations, AVAILABLE_LANGUAGES, Currency, SUPPORTED_CURRENCIES } from '../utils/i18n';
 import { FlagIcon } from './FlagIcon';
 
 interface AuthSignInScreenProps {
   lang: Language;
   setLang: (l: Language) => void;
+  currency?: Currency;
+  setCurrency?: (c: Currency) => void;
   darkMode: boolean;
   setDarkMode: (d: boolean) => void;
 }
@@ -14,6 +16,8 @@ interface AuthSignInScreenProps {
 export const AuthSignInScreen: React.FC<AuthSignInScreenProps> = ({
   lang,
   setLang,
+  currency = 'EUR',
+  setCurrency,
   darkMode,
   setDarkMode,
 }) => {
@@ -24,18 +28,23 @@ export const AuthSignInScreen: React.FC<AuthSignInScreenProps> = ({
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
   const langDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close language dropdown on Escape key press
+  // Currency dropdown menu state
+  const [isCurrencyDropdownOpen, setIsCurrencyDropdownOpen] = useState(false);
+  const currencyDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdowns on Escape key press
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isLangDropdownOpen) {
-        setIsLangDropdownOpen(false);
+      if (e.key === 'Escape') {
+        if (isLangDropdownOpen) setIsLangDropdownOpen(false);
+        if (isCurrencyDropdownOpen) setIsCurrencyDropdownOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isLangDropdownOpen]);
+  }, [isLangDropdownOpen, isCurrencyDropdownOpen]);
 
-  // Click outside to close language dropdown
+  // Click outside to close dropdowns
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (
@@ -44,17 +53,26 @@ export const AuthSignInScreen: React.FC<AuthSignInScreenProps> = ({
       ) {
         setIsLangDropdownOpen(false);
       }
+      if (
+        currencyDropdownRef.current &&
+        !currencyDropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsCurrencyDropdownOpen(false);
+      }
     };
-    if (isLangDropdownOpen) {
+    if (isLangDropdownOpen || isCurrencyDropdownOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isLangDropdownOpen]);
+  }, [isLangDropdownOpen, isCurrencyDropdownOpen]);
 
   const currentLangObj =
     AVAILABLE_LANGUAGES.find((l) => l.code === lang) || AVAILABLE_LANGUAGES[1];
+
+  const currentCurrencyObj =
+    SUPPORTED_CURRENCIES.find((c) => c.code === currency) || SUPPORTED_CURRENCIES[0];
 
   return (
     <div
@@ -133,6 +151,60 @@ export const AuthSignInScreen: React.FC<AuthSignInScreenProps> = ({
               </div>
             )}
           </div>
+
+          {/* Currency Dropdown Selector */}
+          {setCurrency && (
+            <div className="relative shrink-0" ref={currencyDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setIsCurrencyDropdownOpen((prev) => !prev)}
+                aria-label={`${t.currency}: ${currency}`}
+                aria-haspopup="true"
+                aria-expanded={isCurrencyDropdownOpen}
+                title={`${t.accountCurrency}: ${currency} (${currentCurrencyObj.symbol})`}
+                className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 transition-colors shrink-0 shadow-2xs font-bold text-xs text-slate-800 dark:text-slate-200 cursor-pointer bg-white dark:bg-slate-900"
+              >
+                <span>{currentCurrencyObj.symbol}</span>
+              </button>
+
+              {isCurrencyDropdownOpen && (
+                <div
+                  className="absolute right-0 rtl:right-auto rtl:left-0 top-full mt-1.5 w-44 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl py-1 z-50 animate-in fade-in zoom-in-95 duration-100"
+                  role="menu"
+                >
+                  <div className="px-3 py-1 text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                    {t.currency}
+                  </div>
+                  {SUPPORTED_CURRENCIES.map((curOpt) => (
+                    <button
+                      key={curOpt.code}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setCurrency(curOpt.code);
+                        setIsCurrencyDropdownOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-2 text-xs font-medium transition-colors cursor-pointer ${
+                        currency === curOpt.code
+                          ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 font-semibold'
+                          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-xs font-mono w-6 text-center text-emerald-600 dark:text-emerald-400">
+                          {curOpt.symbol}
+                        </span>
+                        <span>{curOpt.code} — {t[curOpt.nameKey] || curOpt.label}</span>
+                      </div>
+                      {currency === curOpt.code && (
+                        <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Theme Toggle Button */}
           <button

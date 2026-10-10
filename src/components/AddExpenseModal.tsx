@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Category, Expense, ExpenseType } from '../types/finance';
+import { Category, Expense, ExpenseType, Currency } from '../types/finance';
 import { Language, translations } from '../utils/i18n';
 import { X, Check } from 'lucide-react';
 import { CategoryIcon } from './CategoryIcon';
+import { getTodayISO, getCurrencySymbol } from '../utils/formatters';
 
 interface AddExpenseModalProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ interface AddExpenseModalProps {
   selectedYear: number;
   selectedMonth: number;
   lang: Language;
+  currency?: Currency;
 }
 
 export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
@@ -24,28 +26,24 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   selectedYear,
   selectedMonth,
   lang,
+  currency,
 }) => {
   const t = translations[lang];
-
-  // Default date in YYYY-MM-DD
-  const defaultDate = () => {
-    const mStr = selectedMonth < 10 ? `0${selectedMonth}` : `${selectedMonth}`;
-    const dStr = '26'; // matches 26.09.2026 example or current day
-    return `${selectedYear}-${mStr}-${dStr}`;
-  };
 
   const [amount, setAmount] = useState<string>('');
   const [categoryId, setCategoryId] = useState<string>(categories[0]?.id || '');
   const [store, setStore] = useState<string>('');
   const [name, setName] = useState<string>('');
-  const [date, setDate] = useState<string>(defaultDate());
+  const [date, setDate] = useState<string>(getTodayISO());
   const [isRecurring, setIsRecurring] = useState<boolean>(false);
   const [type, setType] = useState<ExpenseType>('variable');
   const [notes, setNotes] = useState<string>('');
   const [error, setError] = useState<string>('');
 
-  // Populate when editing or opening fresh
+  // Populate when editing or reset to fresh values with TODAY's local date when opening new
   useEffect(() => {
+    if (!isOpen) return;
+
     if (initialExpense) {
       setAmount(initialExpense.amount.toString());
       setCategoryId(initialExpense.categoryId);
@@ -61,13 +59,14 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       setCategoryId(defaultCat ? defaultCat.id : '');
       setStore('');
       setName('');
-      setDate(defaultDate());
+      // Requirement: Expense date must reliably default to current local device date
+      setDate(getTodayISO());
       setIsRecurring(false);
       setType(defaultCat ? defaultCat.defaultType : 'variable');
       setNotes('');
     }
     setError('');
-  }, [initialExpense, isOpen, selectedYear, selectedMonth]);
+  }, [initialExpense, isOpen]);
 
   // When category changes, auto-suggest default type
   const handleCategoryChange = (newCatId: string) => {
@@ -88,12 +87,12 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
     const parsedAmount = parseFloat(amount);
 
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      setError('Please enter a valid amount greater than 0');
+      setError(t.validAmountError);
       return;
     }
 
     if (!categoryId) {
-      setError('Please select a category');
+      setError(t.selectCategoryError);
       return;
     }
 
@@ -147,7 +146,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
               </div>
             )}
 
-          {/* Amount (€) */}
+          {/* Amount */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
               {t.amount} *
@@ -164,8 +163,8 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                 className="w-full text-lg font-bold font-mono px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
                 autoFocus
               />
-              <span className="absolute right-3 top-2.5 text-sm font-bold text-slate-400 font-mono">
-                €
+              <span className="absolute right-3 rtl:right-auto rtl:left-3 top-2.5 text-sm font-bold text-slate-400 font-mono">
+                {getCurrencySymbol(currency)}
               </span>
             </div>
           </div>
@@ -204,7 +203,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                 type="text"
                 list="store-suggestions"
                 required
-                placeholder="e.g. Lidl, Aldi, Rewe"
+                placeholder={t.storePlaceholder}
                 value={store}
                 onChange={(e) => setStore(e.target.value)}
                 className="w-full text-xs px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
@@ -225,7 +224,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
               </label>
               <input
                 type="text"
-                placeholder="e.g. Groceries, Rent, Wifi"
+                placeholder={t.expenseNamePlaceholder}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="w-full text-xs px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
@@ -251,7 +250,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
             {/* Fixed vs Variable */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                Type
+                {t.type}
               </label>
               <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
                 <button
@@ -263,7 +262,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                   }`}
                 >
-                  Variable
+                  {t.variable}
                 </button>
                 <button
                   type="button"
@@ -274,7 +273,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                   }`}
                 >
-                  Fixed
+                  {t.fixed}
                 </button>
               </div>
             </div>
@@ -282,7 +281,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
             {/* Recurring: Yes / No */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                Recurring Monthly?
+                {t.recurringMonthlyQuestion}
               </label>
               <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
                 <button
@@ -294,7 +293,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                   }`}
                 >
-                  No (One-Time)
+                  {t.noOneTime}
                 </button>
                 <button
                   type="button"
@@ -305,7 +304,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                   }`}
                 >
-                  Yes (Recurring)
+                  {t.yesRecurring}
                 </button>
               </div>
             </div>
@@ -318,7 +317,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
             </label>
             <input
               type="text"
-              placeholder="e.g. Weekly cart, receipt notes"
+              placeholder={t.notesPlaceholder}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="w-full text-xs px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500"

@@ -41,6 +41,28 @@
         "activeYear": {
           "type": "integer",
           "description": "User currently selected active year"
+        },
+        "activeCycleId": {
+          "type": "string",
+          "description": "User currently selected active spending cycle ID",
+          "maxLength": 128
+        },
+        "periodMode": {
+          "type": "string",
+          "description": "Preferred period mode (month or cycle)",
+          "enum": ["month", "cycle"]
+        },
+        "currency": {
+          "type": "string",
+          "description": "User preferred account currency display unit",
+          "enum": ["EUR", "USD", "EGP"]
+        },
+        "categoryOrder": {
+          "type": "array",
+          "description": "User preferred custom ordering of category IDs for the Category Budgets & Spending section",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "required": ["uid", "email"]
@@ -186,6 +208,165 @@
         }
       },
       "required": ["year", "month", "income", "budgets"]
+    },
+    "spendingCycle": {
+      "title": "SpendingCycle",
+      "description": "User's personal salary/payment spending cycle period",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique cycle identifier",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "startDate": {
+          "type": "string",
+          "description": "Cycle start date formatted as YYYY-MM-DD",
+          "maxLength": 32
+        },
+        "endDate": {
+          "type": "string",
+          "description": "Cycle end date formatted as YYYY-MM-DD or null if currently active",
+          "maxLength": 32
+        },
+        "income": {
+          "type": "number",
+          "description": "Total income for this spending cycle"
+        },
+        "expectedNextCycleIncome": {
+          "type": "number",
+          "description": "Optional planning expected income for next cycle"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Optional notes or description for this cycle",
+          "maxLength": 2048
+        },
+        "budgets": {
+          "type": "object",
+          "description": "Optional category budgets specific to this spending cycle"
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": ["id", "startDate", "createdAt"]
+    },
+    "bankTransaction": {
+      "title": "BankTransaction",
+      "description": "A ledger transaction representing bank balance events (opening, saving transfer, withdrawal, adjustment)",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique transaction ID",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "type": {
+          "type": "string",
+          "description": "Type of bank transaction",
+          "enum": ["opening-balance", "saving-transfer", "bank-withdrawal", "manual-adjustment"]
+        },
+        "amount": {
+          "type": "number",
+          "description": "Monetary amount in EUR"
+        },
+        "date": {
+          "type": "string",
+          "description": "Transaction date YYYY-MM-DD",
+          "maxLength": 32
+        },
+        "note": {
+          "type": "string",
+          "description": "Optional memo or description",
+          "maxLength": 2048
+        },
+        "sourcePeriodMode": {
+          "type": "string",
+          "description": "Period mode for saving transfers",
+          "enum": ["calendar-month", "spending-cycle"]
+        },
+        "sourcePeriodId": {
+          "type": "string",
+          "description": "ID of period for saving transfers",
+          "maxLength": 128
+        },
+        "targetId": {
+          "type": "string",
+          "description": "Optional ID of associated bank target",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "number",
+          "description": "Last updated timestamp"
+        }
+      },
+      "required": ["id", "type", "amount", "date", "createdAt", "updatedAt"]
+    },
+    "bankTarget": {
+      "title": "BankTarget",
+      "description": "Virtual allocation target within total bank balance",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique target ID",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name of the target",
+          "maxLength": 128
+        },
+        "targetAmount": {
+          "type": "number",
+          "description": "Goal amount in EUR"
+        },
+        "allocatedAmount": {
+          "type": "number",
+          "description": "Currently allocated amount in EUR"
+        },
+        "targetDate": {
+          "type": "string",
+          "description": "Optional deadline YYYY-MM-DD",
+          "maxLength": 32
+        },
+        "icon": {
+          "type": "string",
+          "description": "Lucide icon identifier",
+          "maxLength": 64
+        },
+        "accent": {
+          "type": "string",
+          "description": "Color accent identifier",
+          "maxLength": 32
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Whether the target is currently active"
+        },
+        "completed": {
+          "type": "boolean",
+          "description": "Whether the target goal has been reached"
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "number",
+          "description": "Last updated timestamp"
+        }
+      },
+      "required": ["id", "name", "targetAmount", "allocatedAmount", "active", "completed", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
@@ -204,6 +385,18 @@
     "/users/{userId}/monthRecords/{recordId}": {
       "schema": "monthRecord",
       "description": "User's monthly income and category budget allocations"
+    },
+    "/users/{userId}/spendingCycles/{cycleId}": {
+      "schema": "spendingCycle",
+      "description": "User's spending cycles between salary/payment dates"
+    },
+    "/users/{userId}/bankTransactions/{transactionId}": {
+      "schema": "bankTransaction",
+      "description": "User's bank ledger transactions"
+    },
+    "/users/{userId}/bankTargets/{targetId}": {
+      "schema": "bankTarget",
+      "description": "User's virtual bank savings targets"
     }
   }
 }

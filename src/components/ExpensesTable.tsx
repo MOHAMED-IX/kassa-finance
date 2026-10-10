@@ -3,8 +3,10 @@ import {
   Category,
   Expense,
   ExpenseType,
+  PeriodMode,
+  SpendingCycle,
 } from '../types/finance';
-import { formatDateEU, formatEUR } from '../utils/formatters';
+import { formatDateEU, formatEUR, formatDateRange } from '../utils/formatters';
 import { Language, translations } from '../utils/i18n';
 import {
   Search,
@@ -29,6 +31,8 @@ interface ExpensesTableProps {
   onDeleteExpense: (id: string) => void;
   onExportCSV: () => void;
   lang: Language;
+  periodMode?: PeriodMode;
+  currentCycle?: SpendingCycle | null;
 }
 
 export const ExpensesTable: React.FC<ExpensesTableProps> = ({
@@ -40,6 +44,8 @@ export const ExpensesTable: React.FC<ExpensesTableProps> = ({
   onDeleteExpense,
   onExportCSV,
   lang,
+  periodMode = 'month',
+  currentCycle,
 }) => {
   const t = translations[lang];
 
@@ -73,10 +79,15 @@ export const ExpensesTable: React.FC<ExpensesTableProps> = ({
   const filteredExpenses = useMemo(() => {
     return expenses
       .filter((exp) => {
-        // Month / Year scoping
+        // Scoping: Month or Cycle
         if (scopeMonthOnly) {
-          if (exp.year !== selectedYear || exp.month !== selectedMonth) {
-            return false;
+          if (periodMode === 'cycle' && currentCycle) {
+            if (!exp.date || exp.date < currentCycle.startDate) return false;
+            if (currentCycle.endDate && exp.date > currentCycle.endDate) return false;
+          } else {
+            if (exp.year !== selectedYear || exp.month !== selectedMonth) {
+              return false;
+            }
           }
         }
 
@@ -126,7 +137,10 @@ export const ExpensesTable: React.FC<ExpensesTableProps> = ({
       .sort((a, b) => {
         let diff = 0;
         if (sortField === 'date') {
-          diff = new Date(a.date).getTime() - new Date(b.date).getTime();
+          diff = a.date.localeCompare(b.date);
+          if (diff === 0) {
+            diff = (a.createdAt || 0) - (b.createdAt || 0);
+          }
         } else if (sortField === 'amount') {
           diff = a.amount - b.amount;
         } else if (sortField === 'name') {
@@ -141,6 +155,8 @@ export const ExpensesTable: React.FC<ExpensesTableProps> = ({
     scopeMonthOnly,
     selectedYear,
     selectedMonth,
+    periodMode,
+    currentCycle,
     searchQuery,
     filterCategory,
     filterStore,
@@ -211,17 +227,21 @@ export const ExpensesTable: React.FC<ExpensesTableProps> = ({
                 : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
             }`}
           >
-            {scopeMonthOnly ? 'Selected Month Only' : 'All Months (All Time)'}
+            {scopeMonthOnly
+              ? periodMode === 'cycle'
+                ? t.selectedCycleOnly
+                : t.selectedMonthOnly
+              : t.allTime}
           </button>
 
           {/* Export CSV button */}
           <button
             onClick={onExportCSV}
             className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
-            title="Export filtered records to CSV"
+            title={t.exportCSVTooltip}
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-            <span className="hidden sm:inline">Export CSV</span>
+            <span className="hidden sm:inline">{t.exportCSV}</span>
           </button>
         </div>
       </div>
@@ -293,12 +313,12 @@ export const ExpensesTable: React.FC<ExpensesTableProps> = ({
 
       {hasActiveFilters && (
         <div className="flex items-center gap-2 mb-3 text-xs text-slate-500">
-          <span>Active filters applied</span>
+          <span>{t.activeFiltersApplied}</span>
           <button
             onClick={handleResetFilters}
             className="text-emerald-600 dark:text-emerald-400 underline hover:no-underline font-medium"
           >
-            Clear all filters
+            {t.clearAllFilters}
           </button>
         </div>
       )}
@@ -392,7 +412,7 @@ export const ExpensesTable: React.FC<ExpensesTableProps> = ({
                             ? lang === 'ar' && cat.nameAr
                               ? cat.nameAr
                               : cat.name
-                            : 'Other'}
+                            : t.other}
                         </span>
                       </div>
                     </td>

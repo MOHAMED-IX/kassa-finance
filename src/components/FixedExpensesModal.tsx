@@ -73,7 +73,7 @@ export const FixedExpensesView: React.FC<FixedExpensesModalProps> = ({
               {t.fixedObligations} ({selectedMonth}/{selectedYear})
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
-              Predictable monthly commitments like rent, health insurance, subscriptions, and utilities.
+              {t.predictableCommitmentsDesc}
             </p>
           </div>
         </div>
@@ -82,7 +82,7 @@ export const FixedExpensesView: React.FC<FixedExpensesModalProps> = ({
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between sm:justify-end gap-3 pt-3 md:pt-0 border-t md:border-t-0 border-slate-100 dark:border-slate-800">
           <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center">
             <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-              {t.fixedExpensesLabel} Total
+              {t.fixedExpensesLabel} {t.total}
             </span>
             <span className="text-xl sm:text-2xl font-bold font-mono text-blue-600 dark:text-blue-400 tabular-nums">
               {formatEUR(totalFixed)}
@@ -95,7 +95,7 @@ export const FixedExpensesView: React.FC<FixedExpensesModalProps> = ({
             className="flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-xl shadow-xs transition-all shrink-0 cursor-pointer"
           >
             <Plus className="w-4 h-4 shrink-0" />
-            <span className="whitespace-nowrap">Add Fixed Expense</span>
+            <span className="whitespace-nowrap">{t.addFixedExpense}</span>
           </button>
         </div>
       </div>
@@ -105,7 +105,13 @@ export const FixedExpensesView: React.FC<FixedExpensesModalProps> = ({
         <div className="flex items-start sm:items-center gap-2.5">
           <Repeat className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5 sm:mt-0" />
           <div className="text-xs text-blue-900 dark:text-blue-200 leading-relaxed">
-            <span className="font-semibold">Automatic Recurring Roll-Forward:</span> Carry forward these {fixedExpenses.length} fixed expenses to the upcoming month ({selectedMonth === 12 ? 1 : selectedMonth + 1}/{selectedMonth === 12 ? selectedYear + 1 : selectedYear}).
+            <span className="font-semibold">{t.automaticRecurringRollForward}</span>{' '}
+            {t.rollForwardDesc
+              .replace('{count}', fixedExpenses.length.toString())
+              .replace(
+                '{targetPeriod}',
+                `${selectedMonth === 12 ? 1 : selectedMonth + 1}/${selectedMonth === 12 ? selectedYear + 1 : selectedYear}`
+              )}
           </div>
         </div>
 
@@ -118,7 +124,7 @@ export const FixedExpensesView: React.FC<FixedExpensesModalProps> = ({
           {copySuccess ? (
             <>
               <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-              <span>Copied!</span>
+              <span>{t.copied}</span>
             </>
           ) : (
             <>
@@ -133,7 +139,7 @@ export const FixedExpensesView: React.FC<FixedExpensesModalProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
         {fixedExpenses.length === 0 ? (
           <div className="col-span-1 md:col-span-2 py-12 text-center text-sm text-slate-400 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl">
-            No fixed expenses recorded for this month.
+            {t.noFixedExpensesMonth}
           </div>
         ) : (
           fixedExpenses.map((exp) => (
@@ -188,12 +194,12 @@ export const FixedExpensesView: React.FC<FixedExpensesModalProps> = ({
                   {exp.isRecurring ? (
                     <>
                       <Repeat className="w-3.5 h-3.5 shrink-0" />
-                      <span>Recurring Monthly</span>
+                      <span>{t.recurringMonthly}</span>
                     </>
                   ) : (
                     <>
                       <Lock className="w-3.5 h-3.5 shrink-0" />
-                      <span>Fixed</span>
+                      <span>{t.fixedBadge}</span>
                     </>
                   )}
                 </div>
@@ -203,8 +209,8 @@ export const FixedExpensesView: React.FC<FixedExpensesModalProps> = ({
                   <button
                     type="button"
                     onClick={() => onEditExpense(exp)}
-                    aria-label="Edit fixed expense"
-                    title="Edit fixed expense"
+                    aria-label={t.editFixedExpense}
+                    title={t.editFixedExpense}
                     className="w-8 h-8 flex items-center justify-center text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors border border-slate-200/80 dark:border-slate-700/80 shadow-2xs cursor-pointer active:scale-95"
                   >
                     <Pencil className="w-3.5 h-3.5" />
@@ -212,8 +218,8 @@ export const FixedExpensesView: React.FC<FixedExpensesModalProps> = ({
                   <button
                     type="button"
                     onClick={() => onDeleteExpense(exp.id)}
-                    aria-label="Delete fixed expense"
-                    title="Delete fixed expense"
+                    aria-label={t.deleteFixedExpense}
+                    title={t.deleteFixedExpense}
                     className="w-8 h-8 flex items-center justify-center text-rose-500 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 rounded-lg transition-colors border border-rose-200/80 dark:border-rose-900/80 shadow-2xs cursor-pointer active:scale-95"
                   >
                     <Trash2 className="w-3.5 h-3.5" />

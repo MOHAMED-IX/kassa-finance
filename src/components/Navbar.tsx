@@ -17,20 +17,25 @@ import {
   Check,
   LogOut,
   Cloud,
-  FlaskConical,
+  RotateCw,
+  Landmark,
 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import {
   Language,
   translations,
   AVAILABLE_LANGUAGES,
+  Currency,
+  SUPPORTED_CURRENCIES,
 } from '../utils/i18n';
 import { FlagIcon } from './FlagIcon';
 import { PWAInstallButton } from './PWAInstallButton';
 
 export type ActiveTab =
   | 'dashboard'
+  | 'bank'
   | 'expenses'
+  | 'cycles'
   | 'fixed'
   | 'comparison'
   | 'stores'
@@ -42,13 +47,14 @@ interface NavbarProps {
   setActiveTab: (tab: ActiveTab) => void;
   lang: Language;
   setLang: (lang: Language) => void;
+  currency: Currency;
+  setCurrency: (c: Currency) => void;
   darkMode: boolean;
   setDarkMode: (dark: boolean) => void;
   onOpenAddExpense: () => void;
   onOpenFastBatch: () => void;
   user?: User | null;
   onLogout?: () => void;
-  onOpenTestData?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -56,13 +62,14 @@ export const Navbar: React.FC<NavbarProps> = ({
   setActiveTab,
   lang,
   setLang,
+  currency,
+  setCurrency,
   darkMode,
   setDarkMode,
   onOpenAddExpense,
   onOpenFastBatch,
   user,
   onLogout,
-  onOpenTestData,
 }) => {
   const t = translations[lang];
   // Sidebar hidden by default on all screen sizes, including desktop
@@ -71,19 +78,24 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
   const langDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close sidebar or language dropdown on Escape key press
+  // Currency dropdown menu state for desktop header
+  const [isCurrencyDropdownOpen, setIsCurrencyDropdownOpen] = useState(false);
+  const currencyDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close sidebar, language dropdown, or currency dropdown on Escape key press
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (isLangDropdownOpen) setIsLangDropdownOpen(false);
+        if (isCurrencyDropdownOpen) setIsCurrencyDropdownOpen(false);
         if (isSidebarOpen) setIsSidebarOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isSidebarOpen, isLangDropdownOpen]);
+  }, [isSidebarOpen, isLangDropdownOpen, isCurrencyDropdownOpen]);
 
-  // Click outside to close desktop language dropdown
+  // Click outside to close desktop language or currency dropdown
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (
@@ -92,18 +104,26 @@ export const Navbar: React.FC<NavbarProps> = ({
       ) {
         setIsLangDropdownOpen(false);
       }
+      if (
+        currencyDropdownRef.current &&
+        !currencyDropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsCurrencyDropdownOpen(false);
+      }
     };
-    if (isLangDropdownOpen) {
+    if (isLangDropdownOpen || isCurrencyDropdownOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isLangDropdownOpen]);
+  }, [isLangDropdownOpen, isCurrencyDropdownOpen]);
 
   const navItems: { id: ActiveTab; label: string; icon: React.ReactNode }[] = [
     { id: 'dashboard', label: t.dashboard, icon: <LayoutDashboard className="w-4 h-4 shrink-0" /> },
+    { id: 'bank', label: t.bankAccount, icon: <Landmark className="w-4 h-4 shrink-0" /> },
     { id: 'expenses', label: t.expenses, icon: <Receipt className="w-4 h-4 shrink-0" /> },
+    { id: 'cycles', label: t.spendingCycles, icon: <RotateCw className="w-4 h-4 shrink-0" /> },
     { id: 'fixed', label: t.fixedHub, icon: <Repeat className="w-4 h-4 shrink-0" /> },
     { id: 'comparison', label: t.comparison, icon: <BarChart3 className="w-4 h-4 shrink-0" /> },
     { id: 'stores', label: t.stores, icon: <Store className="w-4 h-4 shrink-0" /> },
@@ -121,6 +141,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const currentLangObj =
     AVAILABLE_LANGUAGES.find((l) => l.code === lang) || AVAILABLE_LANGUAGES[1];
+
+  const currentCurrencyObj =
+    SUPPORTED_CURRENCIES.find((c) => c.code === currency) || SUPPORTED_CURRENCIES[0];
 
   // Reusable Kassa Finance branding matching identical typography, icon, weight, size, spacing, and green accent
   const BrandLogo = () => (
@@ -223,7 +246,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                   {isLangDropdownOpen && (
                     <div
-                      className="absolute right-0 top-full mt-1.5 w-40 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl py-1 z-50 animate-in fade-in zoom-in-95 duration-100"
+                      className="absolute right-0 rtl:right-auto rtl:left-0 top-full mt-1.5 w-40 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl py-1 z-50 animate-in fade-in zoom-in-95 duration-100"
                       role="menu"
                     >
                       <div className="px-3 py-1 text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
@@ -249,6 +272,58 @@ export const Navbar: React.FC<NavbarProps> = ({
                             <span>{langOpt.label}</span>
                           </div>
                           {lang === langOpt.code && (
+                            <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Currency Dropdown Selector */}
+                <div className="relative shrink-0" ref={currencyDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsCurrencyDropdownOpen((prev) => !prev)}
+                    aria-label={`${t.currency}: ${currency}`}
+                    aria-haspopup="true"
+                    aria-expanded={isCurrencyDropdownOpen}
+                    title={`${t.accountCurrency}: ${currency} (${currentCurrencyObj.symbol})`}
+                    className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 transition-colors shrink-0 shadow-2xs font-bold text-xs text-slate-800 dark:text-slate-200 cursor-pointer"
+                  >
+                    <span>{currentCurrencyObj.symbol}</span>
+                  </button>
+
+                  {isCurrencyDropdownOpen && (
+                    <div
+                      className="absolute right-0 rtl:right-auto rtl:left-0 top-full mt-1.5 w-44 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl py-1 z-50 animate-in fade-in zoom-in-95 duration-100"
+                      role="menu"
+                    >
+                      <div className="px-3 py-1 text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                        {t.currency}
+                      </div>
+                      {SUPPORTED_CURRENCIES.map((curOpt) => (
+                        <button
+                          key={curOpt.code}
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setCurrency(curOpt.code);
+                            setIsCurrencyDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between px-3 py-2 text-xs font-medium transition-colors cursor-pointer ${
+                            currency === curOpt.code
+                              ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 font-semibold'
+                              : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-xs font-mono w-6 text-center text-emerald-600 dark:text-emerald-400">
+                              {curOpt.symbol}
+                            </span>
+                            <span>{curOpt.code} — {t[curOpt.nameKey] || curOpt.label}</span>
+                          </div>
+                          {currency === curOpt.code && (
                             <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                           )}
                         </button>
@@ -406,39 +481,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="pt-2">
             <PWAInstallButton lang={lang} variant="sidebar" />
           </div>
-
-          {/* Dedicated Secondary Action: Test Data (September 2026 Scenario) */}
-          {onOpenTestData && (
-            <div className="pt-3 mt-3 border-t border-slate-100 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => {
-                  if (window.innerWidth < 1024) {
-                    setIsSidebarOpen(false);
-                  }
-                  onOpenTestData();
-                }}
-                className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm font-medium rounded-xl text-amber-700 dark:text-amber-400 bg-amber-50/70 dark:bg-amber-950/30 hover:bg-amber-100/70 dark:hover:bg-amber-900/40 border border-amber-200/60 dark:border-amber-800/40 transition-all cursor-pointer group shadow-2xs"
-                title={t.testDataTitle}
-              >
-                <div className="p-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 group-hover:scale-105 transition-transform shrink-0">
-                  <FlaskConical className="w-4 h-4" />
-                </div>
-                <div className="flex flex-col text-left rtl:text-right min-w-0">
-                  <span className="font-semibold text-xs text-amber-900 dark:text-amber-200 truncate">
-                    {t.testDataTitle}
-                  </span>
-                  <span className="text-[10px] text-amber-600/80 dark:text-amber-400/80 truncate">
-                    {lang === 'ar'
-                      ? 'سيناريو سبتمبر 2026'
-                      : lang === 'de'
-                      ? 'Sep 2026 Testszenario'
-                      : 'Sep 2026 Scenario'}
-                  </span>
-                </div>
-              </button>
-            </div>
-          )}
         </nav>
 
         {/* Sidebar Preferences/Settings Section:
@@ -508,7 +550,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   key={langOpt.code}
                   type="button"
                   onClick={() => setLang(langOpt.code)}
-                  className={`py-1.5 px-1 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${
+                  className={`py-1.5 px-1 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
                     lang === langOpt.code
                       ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-300/40 dark:border-emerald-700/40 shadow-2xs'
                       : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
@@ -517,6 +559,31 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <FlagIcon code={langOpt.code} className="w-4 h-3 rounded-2xs" />
                   <span className="text-[11px] font-medium truncate">{langOpt.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Currency Selector in Sidebar (Mobile / Tablet) */}
+          <div className="bg-white dark:bg-slate-800 p-2 rounded-xl border border-slate-200/80 dark:border-slate-700/80">
+            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1.5 px-1">
+              {t.currency}
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              {SUPPORTED_CURRENCIES.map((curOpt) => (
+                <button
+                  key={curOpt.code}
+                  type="button"
+                  onClick={() => setCurrency(curOpt.code)}
+                  className={`py-1.5 px-1 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                    currency === curOpt.code
+                      ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-300/40 dark:border-emerald-700/40 shadow-2xs'
+                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                  }`}
+                  title={`${curOpt.code} — ${curOpt.symbol}`}
+                >
+                  <span className="font-bold text-xs font-mono text-emerald-600 dark:text-emerald-400">{curOpt.symbol}</span>
+                  <span className="text-[11px] font-medium truncate">{curOpt.code}</span>
                 </button>
               ))}
             </div>

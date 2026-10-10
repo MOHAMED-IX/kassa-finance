@@ -36,7 +36,7 @@ service cloud.firestore {
     // Schema validations
     function isValidUserProfile(data) {
       return data.keys().hasAll(['uid', 'email']) &&
-             data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'createdAt', 'hasMigratedLocalData', 'activeMonth', 'activeYear']) &&
+             data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'createdAt', 'hasMigratedLocalData', 'activeMonth', 'activeYear', 'activeCycleId', 'periodMode', 'currency', 'categoryOrder']) &&
              data.uid is string && data.uid.size() <= 128 &&
              data.email is string && data.email.size() <= 256 &&
              (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 128)) &&
@@ -44,7 +44,11 @@ service cloud.firestore {
              (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64)) &&
              (!('hasMigratedLocalData' in data) || data.hasMigratedLocalData is bool) &&
              (!('activeMonth' in data) || (data.activeMonth is number && data.activeMonth >= 1 && data.activeMonth <= 12)) &&
-             (!('activeYear' in data) || (data.activeYear is number && data.activeYear >= 2000 && data.activeYear <= 2100));
+             (!('activeYear' in data) || (data.activeYear is number && data.activeYear >= 2000 && data.activeYear <= 2100)) &&
+             (!('activeCycleId' in data) || (data.activeCycleId is string && data.activeCycleId.size() <= 128)) &&
+             (!('periodMode' in data) || (data.periodMode is string && (data.periodMode == 'month' || data.periodMode == 'cycle'))) &&
+             (!('currency' in data) || (data.currency is string && (data.currency == 'EUR' || data.currency == 'USD' || data.currency == 'EGP'))) &&
+             (!('categoryOrder' in data) || (data.categoryOrder is list && data.categoryOrder.size() <= 100));
     }
 
     function isValidExpense(data) {
@@ -87,6 +91,50 @@ service cloud.firestore {
              (!('notes' in data) || (data.notes is string && data.notes.size() <= 2048));
     }
 
+    function isValidSpendingCycle(data) {
+      return data.keys().hasAll(['id', 'startDate', 'createdAt']) &&
+             data.keys().hasOnly(['id', 'startDate', 'endDate', 'income', 'expectedNextCycleIncome', 'notes', 'createdAt', 'budgets']) &&
+             data.id is string && data.id.size() <= 128 && data.id.matches('^[a-zA-Z0-9_\\-]+$') &&
+             data.startDate is string && data.startDate.size() <= 32 &&
+             (!('endDate' in data) || data.endDate == null || (data.endDate is string && data.endDate.size() <= 32)) &&
+             (!('income' in data) || data.income == null || data.income is number) &&
+             (!('expectedNextCycleIncome' in data) || data.expectedNextCycleIncome == null || data.expectedNextCycleIncome is number) &&
+             (!('notes' in data) || data.notes == null || (data.notes is string && data.notes.size() <= 2048)) &&
+             (!('budgets' in data) || data.budgets is map) &&
+             data.createdAt is number;
+    }
+
+    function isValidBankTransaction(data) {
+      return data.keys().hasAll(['id', 'type', 'amount', 'date', 'createdAt', 'updatedAt']) &&
+             data.keys().hasOnly(['id', 'type', 'amount', 'date', 'note', 'sourcePeriodMode', 'sourcePeriodId', 'targetId', 'createdAt', 'updatedAt']) &&
+             data.id is string && data.id.size() <= 128 && data.id.matches('^[a-zA-Z0-9_\\-]+$') &&
+             data.type is string && (data.type == 'opening-balance' || data.type == 'saving-transfer' || data.type == 'bank-withdrawal' || data.type == 'manual-adjustment') &&
+             data.amount is number &&
+             data.date is string && data.date.size() <= 32 &&
+             (!('note' in data) || (data.note is string && data.note.size() <= 2048)) &&
+             (!('sourcePeriodMode' in data) || (data.sourcePeriodMode is string && (data.sourcePeriodMode == 'calendar-month' || data.sourcePeriodMode == 'spending-cycle'))) &&
+             (!('sourcePeriodId' in data) || (data.sourcePeriodId is string && data.sourcePeriodId.size() <= 128)) &&
+             (!('targetId' in data) || (data.targetId is string && data.targetId.size() <= 128)) &&
+             data.createdAt is number &&
+             data.updatedAt is number;
+    }
+
+    function isValidBankTarget(data) {
+      return data.keys().hasAll(['id', 'name', 'targetAmount', 'allocatedAmount', 'active', 'completed', 'createdAt', 'updatedAt']) &&
+             data.keys().hasOnly(['id', 'name', 'targetAmount', 'allocatedAmount', 'targetDate', 'icon', 'accent', 'active', 'completed', 'createdAt', 'updatedAt']) &&
+             data.id is string && data.id.size() <= 128 && data.id.matches('^[a-zA-Z0-9_\\-]+$') &&
+             data.name is string && data.name.size() <= 128 &&
+             data.targetAmount is number &&
+             data.allocatedAmount is number &&
+             (!('targetDate' in data) || (data.targetDate is string && data.targetDate.size() <= 32)) &&
+             (!('icon' in data) || (data.icon is string && data.icon.size() <= 64)) &&
+             (!('accent' in data) || (data.accent is string && data.accent.size() <= 32)) &&
+             data.active is bool &&
+             data.completed is bool &&
+             data.createdAt is number &&
+             data.updatedAt is number;
+    }
+
     // User account root document
     match /users/{userId} {
       allow get: if isOwner(userId);
@@ -99,7 +147,7 @@ service cloud.firestore {
         allow get, list: if isOwner(userId);
         allow create: if isOwner(userId) && isValidId(expenseId) && isValidExpense(incoming());
         allow update: if isOwner(userId) && isValidId(expenseId) && isValidExpense(incoming());
-        allow delete: if isOwner(userId) && isValidId(expenseId);
+        allow delete: if isOwner(userId);
       }
 
       // Categories subcollection
@@ -107,7 +155,7 @@ service cloud.firestore {
         allow get, list: if isOwner(userId);
         allow create: if isOwner(userId) && isValidId(categoryId) && isValidCategory(incoming());
         allow update: if isOwner(userId) && isValidId(categoryId) && isValidCategory(incoming());
-        allow delete: if isOwner(userId) && isValidId(categoryId);
+        allow delete: if isOwner(userId);
       }
 
       // Month records subcollection
@@ -115,8 +163,33 @@ service cloud.firestore {
         allow get, list: if isOwner(userId);
         allow create: if isOwner(userId) && isValidId(recordId) && isValidMonthRecord(incoming());
         allow update: if isOwner(userId) && isValidId(recordId) && isValidMonthRecord(incoming());
-        allow delete: if isOwner(userId) && isValidId(recordId);
+        allow delete: if isOwner(userId);
+      }
+
+      // Spending cycles subcollection
+      match /spendingCycles/{cycleId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(cycleId) && isValidSpendingCycle(incoming());
+        allow update: if isOwner(userId) && isValidId(cycleId) && isValidSpendingCycle(incoming());
+        allow delete: if isOwner(userId);
+      }
+
+      // Bank transactions subcollection
+      match /bankTransactions/{txId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(txId) && isValidBankTransaction(incoming());
+        allow update: if isOwner(userId) && isValidId(txId) && isValidBankTransaction(incoming());
+        allow delete: if isOwner(userId);
+      }
+
+      // Bank targets subcollection
+      match /bankTargets/{targetId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(targetId) && isValidBankTarget(incoming());
+        allow update: if isOwner(userId) && isValidId(targetId) && isValidBankTarget(incoming());
+        allow delete: if isOwner(userId);
       }
     }
   }
 }
+

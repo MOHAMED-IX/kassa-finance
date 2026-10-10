@@ -1,11 +1,10 @@
 import { Expense, MonthRecord } from '../types/finance';
+import { MIN_CALENDAR_YEAR, MAX_CALENDAR_YEAR } from './calendarRange';
 
 export interface ActiveMonthSelection {
   month: number;
   year: number;
 }
-
-const LOCAL_STORAGE_KEY_GLOBAL = 'kassa_active_month_year';
 
 function isValidDateSelection(month?: number, year?: number): boolean {
   return (
@@ -13,33 +12,36 @@ function isValidDateSelection(month?: number, year?: number): boolean {
     month >= 1 &&
     month <= 12 &&
     typeof year === 'number' &&
-    year >= 2000 &&
-    year <= 2100
+    year >= MIN_CALENDAR_YEAR &&
+    year <= MAX_CALENDAR_YEAR
   );
 }
 
 /**
- * Retrieve saved local active month preference from localStorage
+ * Retrieve saved local active month preference from localStorage.
+ * When userId is provided, it is strictly scoped to that user and will NEVER
+ * fall back to a shared global key belonging to another user.
  */
 export function getSavedLocalActiveMonth(userId?: string): ActiveMonthSelection | null {
   if (typeof window === 'undefined') return null;
 
   try {
-    // 1. Try user-specific local key first if userId provided
-    if (userId) {
-      const userSaved = localStorage.getItem(`${LOCAL_STORAGE_KEY_GLOBAL}_${userId}`);
+    if (userId && userId.trim()) {
+      const userSaved = localStorage.getItem(`kassa_active_month_year_${userId.trim()}`);
       if (userSaved) {
         const parsed = JSON.parse(userSaved);
         if (isValidDateSelection(parsed.month, parsed.year)) {
           return { month: parsed.month, year: parsed.year };
         }
       }
+      // Strictly isolated: do NOT fall back to any other user's or global key
+      return null;
     }
 
-    // 2. Try global local key
-    const globalSaved = localStorage.getItem(LOCAL_STORAGE_KEY_GLOBAL);
-    if (globalSaved) {
-      const parsed = JSON.parse(globalSaved);
+    // Guest fallback
+    const guestSaved = localStorage.getItem('kassa_active_month_year_guest');
+    if (guestSaved) {
+      const parsed = JSON.parse(guestSaved);
       if (isValidDateSelection(parsed.month, parsed.year)) {
         return { month: parsed.month, year: parsed.year };
       }
@@ -52,7 +54,8 @@ export function getSavedLocalActiveMonth(userId?: string): ActiveMonthSelection 
 }
 
 /**
- * Save active month preference to localStorage
+ * Save active month preference to localStorage.
+ * Isolated strictly by userId. Purges legacy global key to prevent leakage.
  */
 export function saveLocalActiveMonth(month: number, year: number, userId?: string): void {
   if (typeof window === 'undefined') return;
@@ -60,9 +63,12 @@ export function saveLocalActiveMonth(month: number, year: number, userId?: strin
 
   try {
     const payload = JSON.stringify({ month, year });
-    localStorage.setItem(LOCAL_STORAGE_KEY_GLOBAL, payload);
-    if (userId) {
-      localStorage.setItem(`${LOCAL_STORAGE_KEY_GLOBAL}_${userId}`, payload);
+    if (userId && userId.trim()) {
+      localStorage.setItem(`kassa_active_month_year_${userId.trim()}`, payload);
+      // Remove any legacy unpartitioned key so other users never read it
+      localStorage.removeItem('kassa_active_month_year');
+    } else {
+      localStorage.setItem('kassa_active_month_year_guest', payload);
     }
   } catch (e) {
     console.warn('Error saving active month to localStorage', e);
@@ -70,11 +76,11 @@ export function saveLocalActiveMonth(month: number, year: number, userId?: strin
 }
 
 /**
- * Intelligently determine the active month on startup:
+ * Intelligently determine the active month on startup for a specific user:
  * 1. Saved cloud user profile preference (highest priority)
- * 2. Saved local storage preference
- * 3. Most recent month with actual financial data (month records or expenses)
- * 4. Current real-world calendar month as default fallback (NEVER hardcoded to Sep 2026)
+ * 2. Saved local storage preference (isolated by userId)
+ * 3. Most recent month with actual financial data in the user's ledger
+ * 4. Current real-world calendar month as default fallback
  */
 export function determineInitialActiveMonth(options: {
   cloudMonth?: number;
@@ -90,7 +96,7 @@ export function determineInitialActiveMonth(options: {
     return { month: cloudMonth!, year: cloudYear! };
   }
 
-  // 2. Check local preference
+  // 2. Check user-isolated local preference
   const localPref = getSavedLocalActiveMonth(userId);
   if (localPref) {
     return localPref;
@@ -124,10 +130,11 @@ export function determineInitialActiveMonth(options: {
     return candidates[0];
   }
 
-  // 4. Default fallback: current real-world calendar month
+  // 4. Default fallback: current real-world calendar month, clamped to available range
   const now = new Date();
+  const currentYear = Math.max(MIN_CALENDAR_YEAR, Math.min(MAX_CALENDAR_YEAR, now.getFullYear()));
   return {
     month: now.getMonth() + 1,
-    year: now.getFullYear(),
+    year: currentYear,
   };
 }

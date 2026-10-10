@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { FinancialSummary } from '../types/finance';
 import { formatEUR } from '../utils/formatters';
-import { Language } from '../utils/i18n';
+import { Language, translations } from '../utils/i18n';
 import { PieChart, Store as StoreIcon } from 'lucide-react';
 import { CategoryIcon } from './CategoryIcon';
 
@@ -11,6 +11,7 @@ interface ChartsSectionProps {
 }
 
 export const ChartsSection: React.FC<ChartsSectionProps> = ({ summary, lang }) => {
+  const t = translations[lang];
   const [hoveredCategoryIndex, setHoveredCategoryIndex] = useState<number | null>(null);
 
   // Filter categories with spending > 0
@@ -57,17 +58,17 @@ export const ChartsSection: React.FC<ChartsSectionProps> = ({ summary, lang }) =
           <div className="flex items-center gap-2">
             <PieChart className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             <h3 className="text-base font-bold text-slate-900 dark:text-white font-['Plus_Jakarta_Sans',sans-serif]">
-              {lang === 'ar' ? 'توزيع المصروفات حسب التصنيف' : 'Expense Distribution by Category'}
+              {t.expenseDistributionByCategory}
             </h3>
           </div>
           <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-            {activeCategories.length} Active Categories
+            {t.activeCategoriesCount.replace('{count}', String(activeCategories.length))}
           </span>
         </div>
 
         {totalSpent === 0 ? (
           <div className="py-12 text-center text-sm text-slate-400">
-            No expenses recorded for this month.
+            {t.noExpensesRecordedPeriod.replace('{period}', summary.periodMode === 'cycle' ? t.spendingCycleWord : t.monthWord)}
           </div>
         ) : (
           <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
@@ -108,7 +109,7 @@ export const ChartsSection: React.FC<ChartsSectionProps> = ({ summary, lang }) =
                     ? lang === 'ar' && activeCategory.category.nameAr
                       ? activeCategory.category.nameAr
                       : activeCategory.category.name
-                    : 'Total'}
+                    : t.totalLabel}
                 </span>
                 <span className="text-base font-bold font-mono text-slate-900 dark:text-white tabular-nums">
                   {formatEUR(activeCategory ? activeCategory.totalSpent : totalSpent)}
@@ -116,7 +117,7 @@ export const ChartsSection: React.FC<ChartsSectionProps> = ({ summary, lang }) =
                 <span className="text-[10px] font-mono text-slate-400">
                   {activeCategory
                     ? `${((activeCategory.totalSpent / totalSpent) * 100).toFixed(1)}%`
-                    : `${activeCategories.length} categories`}
+                    : t.categoriesCount.replace('{count}', String(activeCategories.length))}
                 </span>
               </div>
             </div>
@@ -168,17 +169,17 @@ export const ChartsSection: React.FC<ChartsSectionProps> = ({ summary, lang }) =
           <div className="flex items-center gap-2">
             <StoreIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             <h3 className="text-base font-bold text-slate-900 dark:text-white font-['Plus_Jakarta_Sans',sans-serif]">
-              {lang === 'ar' ? 'أعلى المتاجر إنفاقاً' : 'Top Stores & Spending'}
+              {t.topStoresSpending}
             </h3>
           </div>
           <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-            {summary.storeSummaries.length} Stores
+            {t.storesCount.replace('{count}', String(summary.storeSummaries.length))}
           </span>
         </div>
 
         {topStores.length === 0 ? (
           <div className="py-12 text-center text-sm text-slate-400">
-            No store purchases recorded.
+            {t.noStorePurchases}
           </div>
         ) : (
           <div className="space-y-3">
@@ -193,7 +194,7 @@ export const ChartsSection: React.FC<ChartsSectionProps> = ({ summary, lang }) =
                     </span>
                     <div className="flex items-center gap-2 font-mono">
                       <span className="text-[11px] text-slate-400">
-                        {st.transactionCount} {st.transactionCount === 1 ? 'order' : 'orders'}
+                        {st.transactionCount === 1 ? t.orderCountSingle : t.ordersCount.replace('{count}', String(st.transactionCount))}
                       </span>
                       <span className="font-bold text-slate-900 dark:text-white tabular-nums">
                         {formatEUR(st.totalSpent)}
